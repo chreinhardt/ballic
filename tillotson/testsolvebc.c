@@ -1,0 +1,127 @@
+/*
+ ** This is a simple program to test the Tillotson EOS library.
+ */
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <malloc.h>
+#include <assert.h>
+#include "tillotson.h"
+
+#define max(A,B) ((A) > (B) ? (A) : (B))
+#define min(A,B) ((A) > (B) ? (B) : (A))
+
+#define INDEX(i, j) (((i)*granite->nTableV) + (j))
+
+void main(int argc, char **argv) {
+	/*
+	** Debug tillSolveBC(). 
+	*/
+	double dKpcUnit = 2.06701e-13;
+	double dMsolUnit = 4.80438e-08;
+	double rhomax = 100.0;
+	double vmax = 25.0;
+	int nTableRho = 1000;
+	int nTableV = 1000;
+	double rho1, u1, P1, T1;
+	double rho2, u2, P2, T2;
+
+	int i = 0;
+	int j = 0;
+	int n = 1;
+	double l = 0.0;
+
+	TILLMATERIAL *mat1;
+	TILLMATERIAL *mat2;
+
+	fprintf(stderr, "Initializing material...\n");
+
+	mat1 = tillInitMaterial(IRON, dKpcUnit, dMsolUnit, nTableRho, nTableV, rhomax, vmax, n);
+	mat2 = tillInitMaterial(GRANITE, dKpcUnit, dMsolUnit, nTableRho, nTableV, rhomax, vmax, n);
+
+	fprintf(stderr, "Initializing the look up table...\n");
+	/* Solve ODE and splines */
+	tillInitLookup(mat1);
+	tillInitLookup(mat2);
+	fprintf(stderr, "Done.\n");
+/*
+	fprintf(stderr,"\n");
+	fprintf(stderr,"rhomax: %g, vmax: %g \n", granite->rhomax, granite->vmax);
+	fprintf(stderr,"nTableRho: %i, nTableV: %i \n", granite->nTableRho, granite->nTableV);
+	fprintf(stderr,"drho: %g, dv: %g \n", granite->drho, granite->dv);
+*/	
+	// Check if u = uc +cv*T works.
+	rho1 = 10.0;
+	u1 = 30.0;
+	P1 = tillPressure(mat1, rho1, u1);
+	T1 = tillTempRhoU(mat1, rho1, u1);
+
+	fprintf(stderr,"iMat1=%i iMat2=%i\n",mat1->iMaterial,mat2->iMaterial);
+
+	fprintf(stderr,"rho1=%g u1=%g P1=%g T1=%g u1(rho1,T1)=%g iMat=%i\n",rho1,u1,P1,T1,tillURhoTemp(mat1, rho1, T1),mat1->iMaterial);
+	rho2 = rho1;
+	fprintf(stderr,"rho2=%g u2(rho2,T1)=%g iMat=%i\n",rho2,u1,tillURhoTemp(mat2, rho2, T1),mat2->iMaterial);
+
+	fprintf(stderr,"Starting values: rho1=%g u1=%g P1=%g T1=%g u1(rho1,T1)=%g\n",rho1,u1,P1,T1,tillURhoTemp(mat1, rho1, T1));
+	fprintf(stderr,"tillSolveBC: start\n");
+	/* Solve for rho2 and u2. */
+	tillSolveBC(mat1, mat2, rho1, u1, &rho2, &u2);
+	fprintf(stderr,"tillSolveBC: done\n");
+#if 0
+//	rho = 0.0;
+	u = 0.0;
+	P = 0.0;
+//	T = 0.0;
+
+	double rho2 = rho;
+	double u2 = tillColdULookup(granite,rho2) + granite->cv*T;
+	double P2 = tillPressure(granite, rho2, u2);
+	double T2 = tillTempRhoU(granite, rho2, u2);
+
+	fprintf(stderr,"Results: rho2=%g u2=%g P2=%g T2=%g\n",rho2,u2,P2,T2);
+	
+	exit(1);
+// Just delete this code later
+
+	/*
+	** Print the look up table to a file first.
+	*/	
+
+	//sprintf(achFile,"%s.log",msrOutName(msr));
+	fp = fopen("lookup.txt","w");
+	assert(fp != NULL);
+
+	for (i=0;i<granite->nTableRho;i+=1)
+	{
+		rho = i*granite->drho;
+		fprintf(fp,"%g",rho);
+		for (j=0;j<granite->nTableV;j+=1)
+		{
+			// v = j*granite->dv
+			u = granite->Lookup[INDEX(i, j)].u;
+			fprintf(fp,"  %g", u);
+		}
+		fprintf(fp,"\n");
+	}
+	fclose(fp);
+
+	/* Interpolate values along the cold curve (v=0) */
+	for (i=0;i<granite->nTableRho-1;i+=1)
+	{
+		// Middle of the interval (i,i+1)
+		//rho = (i + 0.5)*granite->drho;
+		l = 0.0;
+		while (l < 0.9)
+		{
+			rho = (i + l)*granite->drho;
+			
+			u = tillColdULookup(granite, rho);
+			printf("%g  %g\n",rho, u);
+			l+=0.2;
+		}
+	}
+#endif
+	fprintf(stderr,"Done.\n");
+	tillFinalizeMaterial(mat1);
+	tillFinalizeMaterial(mat2);
+}

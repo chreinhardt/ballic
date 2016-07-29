@@ -1,0 +1,46 @@
+#####################################
+# An example parameter file to be
+# used when calculating the smoothed
+# density of a model.
+#####################################
+dSoft = 0.001
+bPeriodic = 0
+bParaRead = 0
+bParaWrite = 0
+dTheta = 0.55
+nReplicas = 0
+achInFile = ballic.std
+achOutName = ballic
+# Try values alpha = 1.5 and beta = 3 from Canup 2004
+dConstAlpha = 1.5
+dConstBeta = 3
+# We use a Wendland C2 kernel
+nSmooth = 80
+# Set a checkpoint
+iCheckInterval = 30
+bRestart = 0
+dExtraStore = 0.5
+iMaxRung = 16
+dEta = 0.3
+dEtaCourant = 0.2
+bStandard = 1
+bDoGravity = 1
+#bDoSelfGravity = 0
+bDoGas = 1
+# New density
+bFastGas = 0
+bComove = 0
+bGasCondensed = 1
+# These values define the unit system used
+dKpcUnit = 2.06701e-13
+dMsolUnit = 4.80438e-08
+dMeanMolWeight = 1.0
+nSteps = 1000
+dDelta = 0.001
+iOutInterval = 10
+#iOutInterval = 1
+iLogInterval = 1
+bOverwrite = 0
+bVDetails = 1
+bVRungStat = 1
+#bBulkViscosity = 1
