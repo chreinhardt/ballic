@@ -15,8 +15,6 @@
 
 #define MATERIAL 0
 
-#define DOUBLE_POS_VEL
-
 typedef struct icosa_struct {
     float R[180];
     float v[36];
@@ -393,7 +391,8 @@ double drhodr(MODEL *model,double r,double rho,double M,double u) {
 
 
 double dudr(MODEL *model,double r,double rho,double M,double u) {
-  return(dudrho(model,rho,u)*drhodr(model,r,rho,M,u));
+//	return(dudrho(model,rho,u)*drhodr(model,r,rho,M,u));
+	return(0.0);
 }
 
 /*
@@ -681,9 +680,6 @@ double rShell2(MODEL *model,int bIcosa,double m,double ri,int ns) {
 
 void main(int argc, char **argv) {
     const int bCentral = 1;
-	// Use Icosahedron
-//    int bIcosa = 1;
-	// Use HEALPix
     int bIcosa = 0;
     const int bRandomRotate = 1;
     TCTX out;
