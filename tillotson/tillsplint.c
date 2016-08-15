@@ -80,8 +80,8 @@ void tillInitSplineRho(TILLMATERIAL *material)
 		yp1 = 1.0/(rho*rho)*(c2 - 2.0*P/rho);
 
 
-		rho = material->Lookup[TILL_INDEX(material->nTableMax-1,j)].rho;
-		u = material->Lookup[TILL_INDEX(material->nTableMax-1,j)].u;
+		rho = material->Lookup[TILL_INDEX(material->nTableRho-1,j)].rho;
+		u = material->Lookup[TILL_INDEX(material->nTableRho-1,j)].u;
 		P = tillPressureSound(material, rho, u, &c2);
 		ypn = 1.0/(rho*rho)*(c2 - 2.0*P/rho);
 */

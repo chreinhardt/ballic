@@ -128,6 +128,22 @@ TILLMATERIAL *tillInitMaterial(int iMaterial, double dKpcUnit, double dMsolUnit,
 			material->beta = 5.0;
 			material->cv = 0.449e7; /* ergs/g K */ 
 			break;
+		case BASALT:
+			/*
+			** Material parameters from Benz 1999.
+			*/
+			material->a = 0.5;
+			material->b = 1.5;
+			material->u0 = 4.87e12; /* in ergs/g */
+			material->rho0 = 2.7; /* g/cc */
+			material->A = 2.67e11; /* ergs/cc */
+			material->B = 2.67e11; /* ergs/cc */
+			material->us = 4.72e10; /* ergs/g */
+			material->us2 = 1.82e11; /* ergs/g */
+			material->alpha = 5.0;
+			material->beta = 5.0;
+			material->cv = 0.84e7; /* ergs/g K */ 
+			break;
 		default:
 			/* Unknown material */
 			assert(0);

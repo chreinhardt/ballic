@@ -1,3 +1,9 @@
+/*
+ ** Copyright (c) 2014-2016 Joachim Stadel and Christian Reinhardt.
+ **
+ ** ballic provides a low noise particle representation of equilibrium
+ ** models.
+ */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

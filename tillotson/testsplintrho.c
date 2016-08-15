@@ -11,7 +11,7 @@
 #define max(A,B) ((A) > (B) ? (A) : (B))
 #define min(A,B) ((A) > (B) ? (B) : (A))
 
-#define INDEX(i, j) (((i)*granite->nTableMax) + (j))
+#define INDEX(i, j) (((i)*granite->nTableV) + (j))
 
 void main(int argc, char **argv) {
 	/*
@@ -22,9 +22,11 @@ void main(int argc, char **argv) {
 	*/
 	double dKpcUnit = 2.06701e-13;
 	double dMsolUnit = 4.80438e-08;
-	double rhomax = 25.0;
-	double vmax = 25.0;
-	int nTableMax = 1000;
+	double rhomax =25.0;
+	double vmax = 1200.0;
+	int nTableRho = 1000;
+	int nTableV = 1000;
+
 	double rho, u;
 
 	int i = 0;
@@ -33,34 +35,64 @@ void main(int argc, char **argv) {
 	TILLMATERIAL *granite;
 	struct lookup *isentrope;
 
+	/* Create an output file for the look up table */
+	FILE *fp = NULL;
+
 	fprintf(stderr, "Initializing material...\n");
 
-	granite = tillInitMaterial(GRANITE, dKpcUnit, dMsolUnit, nTableMax, rhomax, vmax);
+	granite = tillInitMaterial(GRANITE, dKpcUnit, dMsolUnit, nTableRho, nTableV, rhomax, vmax, 1);
 	
 	fprintf(stderr, "Initializing the look up table...\n");
 	/* Solve ODE and splines */
 	tillInitLookup(granite);
-	fprintf(stderr, "Done.\n");
+	tillInitSplineRho(granite);
 
-	fprintf(stderr,"nTableMax: %i\n", granite->nTableMax);
+	fprintf(stderr, "Done.\n");
 
 	rho = 0.0;
 	u = 0.0;
 
+	/*
+	** Print the look up table to a file first.
+	*/	
+//#if 0
+
+	//sprintf(achFile,"%s.log",msrOutName(msr));
+	fp = fopen("lookup.txt","w");
+	assert(fp != NULL);
+
+	for (i=0;i<granite->nTableRho;i+=1)
+	{
+		rho = i*granite->drho;
+		fprintf(fp,"%g",rho);
+		for (j=0;j<granite->nTableV;j+=1)
+		{
+			// v = j*granite->dv
+			u = granite->Lookup[INDEX(i, j)].u;
+			fprintf(fp,"  %g", u);
+		}
+		fprintf(fp,"\n");
+	}
+	fclose(fp);
+//#endif
+
 	j = 51;
 	 	
-//	for (j=0;j<granite->nTableMax;j++)
+//	for (j=0;j<granite->nTableV;j++)
 //	{
-		for (i=0;i<granite->nTableMax;i++)
+		for (i=0;i<granite->nTableRho-1;i++)
 		{
 			//rho = granite->Lookup[INDEX(i,j)].rho;
 			// Choose a point in the middle of the interval
-			rho = granite->Lookup[INDEX(i,j)].rho + 0.5*granite->delta;
-			u = tillSplineInterpolation(granite, rho, j);
+			rho = granite->Lookup[INDEX(i,j)].rho + 0.5*granite->drho;
+//			fprintf(stderr,"%g  ", rho);
+//			rho = (i+0.5)*granite->drho;
+//			fprintf(stderr,"%g\n", rho);
+			u = tillSplineIntrho(granite, rho, j);
 
-			printf("%g %g\n", rho, u);
+			printf("%g %g %g\n", rho, u, tillCubicIntRho(granite, rho, j));
 		}
-		printf("\n");
+//		printf("\n");
 //	}
 
 	tillFinalizeMaterial(granite);

@@ -112,7 +112,7 @@ void main(int argc, char **argv) {
 					u = tillCubicInt(granite, rho, v);
 
 					//fprintf(stderr,"i: %i, j: %i, v: %g, u: %g\n",i,j,v,u);
-					printf("  %g", u);
+					printf("  %.8g", u);
 					k+=0.5;
 				}
 			}

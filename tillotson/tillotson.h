@@ -13,8 +13,9 @@
 
 #define GRANITE 0
 #define IRON 1
+#define BASALT 2
 
-#define TILL_N_MATERIAL_MAX 2
+#define TILL_N_MATERIAL_MAX 3
 /* Degree of the spline function we use for interpolation. */
 #define TILL_SPLINE_DEGREE 3
 
