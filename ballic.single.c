@@ -10,9 +10,16 @@
 #include <malloc.h>
 #include <assert.h>
 #include "tipsy.h"
+#include "tillotson/tillotson.h"
+//#include "ballic.h"
 
 #define max(A,B) ((A) > (B) ? (A) : (B))
 #define min(A,B) ((A) > (B) ? (B) : (A))
+
+// Isentropic thermal profile
+#define BALLIC_U_ISENTROPIC
+
+#define MATERIAL 0
 
 typedef struct icosa_struct {
     float R[180];
@@ -192,6 +199,8 @@ double Packed49[49][3] = {
 
 
 typedef struct model_ctx {
+	/* Material coefficients from the Tillotson EOS. */
+	TILLMATERIAL **tillMat;
 	int nMat;
 	/*
 	** Some unit conversion factors.
@@ -203,18 +212,17 @@ typedef struct model_ctx {
 	*/
 	int nTableMax;
 	int nTable;
-
+	double uc; /* u at r = 0 */
 	double *M;
 	double *rho;
 	double *u;
 	double *r;
-	int *mat;
 	double dr;
 	double R;
 	} MODEL;
 
 
-MODEL *modelInit() {
+MODEL *modelInit(double ucore) {
 	int i;
     /* Initialize the model */
 	MODEL *model;
@@ -224,8 +232,41 @@ MODEL *modelInit() {
 
     model->dKpcUnit = 2.06701e-13;
     model->dMsolUnit = 4.80438e-08;
+	/* Hard coded */
+	model->nMat = 2;
+	model->tillMat = malloc(model->nMat*sizeof(TILLMATERIAL *));
 
-	/* Calculate the conversion factors. */
+	for (i=0; i<model->nMat; i++)
+	{
+		/*
+		** Initialize one material.
+		** i=0: Granite
+		** i=1: Iron
+		*/
+		model->tillMat[i] = tillInitMaterial(i, model->dKpcUnit, model->dMsolUnit, 100, 100, 50.0, 50.0, 1);
+
+		// Debug information
+
+		fprintf(stderr,"\n");	
+		fprintf(stderr,"Material: %i\n",i);	
+		fprintf(stderr,"a: %g\n", model->tillMat[i]->a);
+		fprintf(stderr,"b: %g\n", model->tillMat[i]->b);
+		fprintf(stderr,"A: %g\n", model->tillMat[i]->A);
+		fprintf(stderr,"B: %g\n", model->tillMat[i]->B);
+		fprintf(stderr,"rho0: %g\n", model->tillMat[i]->rho0);
+		fprintf(stderr,"u0: %g\n", model->tillMat[i]->u0);
+		fprintf(stderr,"us: %g\n", model->tillMat[i]->us);
+		fprintf(stderr,"us2: %g\n", model->tillMat[i]->us2);
+		fprintf(stderr,"alpha: %g\n", model->tillMat[i]->alpha);
+		fprintf(stderr,"beta: %g\n", model->tillMat[i]->beta);
+   		fprintf(stderr,"cv: %g\n", model->tillMat[i]->cv);
+		fprintf(stderr,"\n");
+	}
+
+
+    /* model->uFixed = uFixed/model->dErgPerGmUnit; */
+    model->uc = ucore;
+
     model->nTableMax = 10000; 
     model->M = malloc(model->nTableMax*sizeof(double));
     assert(model->M != NULL);
@@ -235,153 +276,342 @@ MODEL *modelInit() {
     assert(model->u != NULL);
     model->r = malloc(model->nTableMax*sizeof(double));
     assert(model->r != NULL);
-    model->mat = malloc(model->nTableMax*sizeof(double));
-    assert(model->mat != NULL);
     model->dr =  0.0;
     model->nTable = 0;
     
     return(model);
     }
 
-/*
-** Read a text file containing an equilibrium model.
-*/
-double modelRead(MODEL *model, char *file) {
-	FILE *fp;
-	int iRet, i;
-
-	assert(model != NULL);
-
-	/* Open the file. */
-	fp = fopen(file,"r");
-	assert(fp != NULL);
-
-	/* Read the model. */
-	for (i=0; i<model->nTableMax;i++)
-	{
-
-//		fprintf(stderr,"i=%i\n",i);
-		// R  M(R)  rho  u  iMat
-		iRet = fscanf(fp, "%lf %lf %lf %lf %d", &model->r[i],&model->M[i],&model->rho[i],&model->u[i],&model->mat[i]);
-		
-		if (iRet <= 0 && feof(fp)) break;
-
-		assert(iRet > 0);
-		
-		assert(model->r[i] >= 0.0);
-		assert(model->M[i] >= 0.0);
-		assert(model->rho[i] >= 0.0);
-		assert(model->u[i] >= 0.0);
-		assert(model->mat[i] >= 0.0);
-		
-		model->nTable = i;
-		//printf("%g  %g  %g  %g  %i\n",model->r[i],model->M[i],model->rho[i],model->u[i],model->mat[i]);
-	}
-
-	model->nTable += 1;
-	
-	fprintf(stderr,"nTable=%i\n",model->nTable);
-
-}
-/*
-** Do bisection to find the values r_i and r_i+1 that
-** bracket r in the lookup table. The function returns
-** r_i.
-*/
-int rLookup(MODEL *model,double r) {
-	int iLower,iUpper,i;
-
-	iLower = 0;
-	iUpper = model->nTable-1;
-
-//	fprintf(stderr,"rLookup: r=%g\n", r);
-	/* Make sure that r is in the lookup table. */
-	assert(r >= model->r[iLower]);
-	assert(r <= model->r[iUpper]);
-
-	assert(model->r[iLower] < model->r[iUpper]);
-
-	/* Do bisection. */
-	while (iUpper-iLower > 1)
-	{
-		i = (iUpper + iLower) >> 1;
-
-		if (r >= model->r[i])
-		{
-			iLower = i;
-		} else {
-			iUpper = i;
-		}
-	}
-	
-	if (r == model->r[0]) return 0;
-	if (r == model->r[model->nTable-1]) return 0;
-
-	return iLower;
-}
-
-/*
-** Find the mass enclosed for a given r.
-*/
-double MLookup(MODEL *model,double r) {
-	int i;
-	double A;
-		
-	/* If r is outside of the lookup table, return something. */
-	i = model->nTable-1;
-    if (r >= model->r[i]) return(model->M[i]*(1.0 + log(r-model->r[i]+1)));
-
-	i = rLookup(model,r);
-
-	/* Do a linear interpolation. */
-	A = (model->r[i+1]-r)/(model->r[i+1]-model->r[i]);
-	return (A*model->M[i]+(1.0-A)*model->M[i+1]);
-}
-
-/*
-** Find the density for a given r.
-*/
-double rhoLookup(MODEL *model,double r) {
-	int i;
-	double A;
-		
-	/* If r is outside of the lookup table, return something. */
-	i = model->nTable-1;
-    if (r >= model->r[i]) return(model->rho[i]*exp(-(r-model->r[i])));
-
-	i = rLookup(model,r);
-
-	/* Do a linear interpolation. */
-	A = (model->r[i+1]-r)/(model->r[i+1]-model->r[i]);
-	return (A*model->rho[i]+(1.0-A)*model->rho[i+1]);
-}
-
-/*
-** Find the internal energy for a given r.
-*/
-double uLookup(MODEL *model,double r) {
-	int i;
-	double A;
-		
-	/* If r is outside of the lookup table, return something. */
-	i = model->nTable-1;
-    if (r >= model->r[i]) return(model->u[i]*exp(-(r-model->r[i])));
-
-	i = rLookup(model,r);
-
-	/* Do a linear interpolation. */
-	A = (model->r[i+1]-r)/(model->r[i+1]-model->r[i]);
-	return (A*model->u[i]+(1.0-A)*model->u[i+1]);
-}
-
-/* Needs work. */
-int matLookup(MODEL *model,double r) {
-	return 2;
 #if 0
+double Gamma(MODEL *model,double rho,double u) {
+    double eta = rho/model->par.rho0;
+    double w0 = u/(model->par.u0*eta*eta) + 1.0;
+
+    return(model->par.a + model->par.b/w0);
+    }
+
+/*
+** Currently for condensed states only!
+*/
+double Pressure(MODEL *model,double rho,double u) {
+    double mu = rho/model->par.rho0 - 1.0;
+    return(Gamma(model,rho,u)*rho*u + model->par.A*mu + model->par.B*mu*mu);
+    }
+
+double drhodr(MODEL *model,double r,double rho,double M,double u);
+double dudrho(MODEL *model,double rho,double u);
+double dudr(MODEL *model,double r,double rho,double M,double u);
+
+/*
+** Currently for condensed states only! Changed this 8.2.13 to include a polytropic temperature profile.
+*/
+double drhodr(MODEL *model,double r,double rho,double M,double u) {
+    double eta = rho/model->par.rho0;
+    double w0 = u/(model->par.u0*eta*eta) + 1.0;
+    double dPdrho,dPdu;
+
+//    fprintf(stderr,"u in system units: %.14g\n",u);
+	dPdrho=tilldPdrho; // dP/drho at u=const.
+    dPdrho = (model->par.a + (model->par.b/w0)*(3 - 2/w0))*u + 
+	(model->par.A + 2*model->par.B*(eta - 1))/model->par.rho0;
+
+    dPdu = (model->par.a + model->par.b/(w0*w0))*rho;
+	dPdu = tilldPdu; // dP/du at rho=const.
+
+    /*
+    ** Here is the old version of dPdrho which assumes Gamma is constant for the derivative and
+    ** as such is not quite self consistent. This makes about a 3% difference in the final 
+    ** radius of the planet. Also u is assumed to be constant here!
+    **
+    dPdrho = Pressure(model,rho,model->uFixed)/rho + (model->par.A + model->par.B*(eta*eta - 1.0))/rho;
+    */
+    assert(r >= 0.0);
+    if (r > 0.0) {
+      return(-M*rho/(r*r*(dPdrho + dPdu*dudrho(model,rho,u))));
+	}
+    else {
+	return(0.0);
+	}
+    }
+
+/*
+** We assume an isentropic internal energy profile!
+*/
+double dudrho(MODEL *model,double rho,double u) {
+  return(Pressure(model,rho,u)/(rho*rho));
+}
+
+double dudr(MODEL *model,double r,double rho,double M,double u) {
+  return(dudrho(model,rho,u)*drhodr(model,r,rho,M,u));
+}
+#endif
+
+double drhodr(MODEL *model,double r,double rho,double M,double u);
+double dudr(MODEL *model,double r,double rho,double M,double u);
+
+/*
+** dudrho depends on the internal energy profile that we choose!
+*/
+double dudrho(MODEL *model,double rho,double u) {
+#ifdef BALLIC_U_POLYTROPIC
+	/*
+	** We assume a polytropic internal energy profile!
+	*/
+	// Not implemented yet
+	assert(0);
+	return(Pressure(model,rho,u)/(rho*rho));
+#else
+#ifdef BALLIC_U_ISENTROPIC
+	/*
+	** We assume an isentropic internal energy profile!
+	*/
+	return(tillPressure(model->tillMat[MATERIAL],rho,u)/(rho*rho));
+#else
+  	fprintf(stderr,"No thermal profile defined when compiled!\n");
+	assert(0);
+#endif
+#endif
+}
+
+/*
+** Calculate dudrho to solve for the equilibrium model.
+*/
+double drhodr(MODEL *model,double r,double rho,double M,double u) {
+    double dPdrho,dPdu;
+
+	dPdrho=tilldPdrho(model->tillMat[MATERIAL], rho, u); // dP/drho at u=const.
+	dPdu = tilldPdu(model->tillMat[MATERIAL], rho, u);; // dP/du at rho=const.
+
+	/*
+	** drho/dr = -G*M*rho/(dPdrho+dPdu*dudrho)
+	*/
+	assert(r >= 0.0);
+	if (r > 0.0) {
+	// We assume G=1
+		return(-M*rho/(r*r*(dPdrho + dPdu*dudrho(model,rho,u))));
+	}
+	else {
+		return(0.0);
+	}
+}
+
+
+double dudr(MODEL *model,double r,double rho,double M,double u) {
+//	return(dudrho(model,rho,u)*drhodr(model,r,rho,M,u));
+	return(0.0);
+}
+
+/*
+** This derivative is independent of the model and only involves geometry.
+*/
+double dMdr(double r,double rho) {
+	assert(r >= 0.0);
+	return(4.0*M_PI*r*r*rho);
+}
+
+const double fact = 1.0;
+
+/*
+** This function solves the model as an initial value problem with rho_initial = rho and 
+** M_initial = 0 at r = 0. This function returns the mass when rho == model->tillMat[i]->rho0.
+*/
+double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
+    FILE *fp;
+    double M = 0.0;
+    double r = 0.0;
+	double u = model->uc;
+    double k1rho,k1M,k1u,k2rho,k2M,k2u,x;
+    int i;
+
+    if (bSetModel) {
+	i = 0;
+	model->rho[i] = rho;
+	model->M[i] = M;
+	model->u[i] = u;
+	model->r[i] = r;
+	fp = fopen("ballic.model","w");
+	assert(fp != NULL);
+	/* Output in temperature! */
+   	fprintf(fp,"%g %g %g %g\n",r,rho,M,u);
+	++i;
+	}
+    while (rho > fact*model->tillMat[MATERIAL]->rho0) {
+	/*
+	** Midpoint Runga-Kutta (2nd order).
+	*/
+	k1rho = h*drhodr(model,r,rho,M,u);
+	k1M = h*dMdr(r,rho);
+	k1u = h*dudr(model,r,rho,M,u);
+
+	k2rho = h*drhodr(model,r+0.5*h,rho+0.5*k1rho,M+0.5*k1M,u+0.5*k1u);
+	k2M = h*dMdr(r+0.5*h,rho+0.5*k1rho);
+	k2u = h*dudr(model,r+0.5*h,rho+0.5*k1rho,M+0.5*k1M,u+0.5*k1u);
+
+	rho += k2rho;
+	M += k2M;
+	u += k2u;
+	r += h;
+
+	if (bSetModel) {
+	    model->rho[i] = rho;
+	    model->M[i] = M;
+	    model->u[i] = u;
+	    model->r[i] = r;
+	    fprintf(fp,"%g %g %g %g\n",r,rho,M,u);
+	    ++i;
+	    }
+	}
+    /*
+    ** Now do a linear interpolation to rho == fact*rho0.
+    */
+    x = (fact*model->tillMat[MATERIAL]->rho0 - rho)/k2rho;
+    assert(x <= 0.0);
+    r += h*x;
+    M += k2M*x;
+    rho += k2rho*x;
+	u += k2u*x;
+
+    if (bSetModel) {
+	--i;
+	model->M[i] = M;
+	model->r[i] = r;
+	model->rho[i] = rho;
+	model->u[i] = u;
+
+	fprintf(fp,"%g %g %g %g\n",r,rho,M,u);
+    fclose(fp);
+	++i;
+	model->nTable = i;
+	model->dr = h;
+	}
+    *pR = r;
+    return(M);
+    }
+
+
+double modelSolve(MODEL *model,double M) {
+    const int nStepsMax = 10000;
+    int bSetModel;
+    double rmax;
+    double dr,R;
+    double a,Ma,b,Mb,c,Mc;
+
+    /*
+    ** First estimate the maximum possible radius.
+    */
+    R = cbrt(3.0*M/(4.0*M_PI*model->tillMat[MATERIAL]->rho0));
+    dr = R/nStepsMax;
+    a = 1.01*model->tillMat[MATERIAL]->rho0; /* starts with 1% larger central density */
+    Ma = midPtRK(model,bSetModel=0,a,dr,&R);
+    fprintf(stderr,"first Ma:%g R:%g\n",Ma,R);
+    b = a;
+    Mb = 0.5*M;
+    while (Ma > M) {
+		b = a;
+		Mb = Ma;
+		a = 0.5*(model->tillMat[MATERIAL]->rho0 + a);
+		Ma = midPtRK(model,bSetModel=0,a,dr,&R);
+	}
+    while (Mb < M) {
+		b = 2.0*b;
+	   	Mb = midPtRK(model,bSetModel=0,b,dr,&R);	
+		fprintf(stderr,"first Mb:%g R:%g\n",Mb,R);
+	}
+
+	// (CR) Debug
+	fprintf(stderr,"Root bracketed.\n");
+
+    /*
+    ** Root bracketed by (a,b).
+    */
+    while (Mb-Ma > 1e-10*Mc) {
+	c = 0.5*(a + b);
+        Mc = midPtRK(model,bSetModel=0,c,dr,&R);	
+	if (Mc < M) {
+	    a = c;
+	    Ma = Mc;
+	    }
+	else {
+	    b = c;
+	    Mb = Mc;
+	    }
+//	fprintf(stderr,"c:%.10g Mc:%.10g R:%.10g\n",c/model->tillMat[0]->rho0,Mc,R);
+	}
+    /*
+    ** Solve it once more setting up the lookup table.
+    */
+    fprintf(stderr,"rho_core: %g cv: %g uc: %g (in system units)\n",c,model->tillMat[MATERIAL]->cv,model->uc);
+    Mc = midPtRK(model,bSetModel=1,c,dr,&R);
+    model->R = R;
+    return c;
+    }
+
+
+double MLookup(MODEL *model,double r) {
     double x,xi,dr;
     int i;
 
-	assert(0);
+    i = model->nTable-1;
+    if (r >= model->r[i]) return(model->M[i]*(1.0 + log(r-model->r[i]+1)));
+    x = r/model->dr;
+    xi = floor(x);
+    assert(xi >= 0.0);
+    x -= xi;
+    i = (int)xi;
+    if (i < 0) {
+	fprintf(stderr,"ERROR r:%.14g x:%.14g xi:%.14g i:%d\n",r,x,xi,i);
+	}
+    assert(i >= 0);
+    if (i < model->nTable-2) {
+	return(model->M[i]*(1.0-x) + model->M[i+1]*x);
+	}
+    if (i == model->nTable-2) {
+	dr = model->r[i+1] - model->r[i];
+	x = r/dr;
+	xi = floor(x);
+	x -= xi;
+	return(model->M[i]*(1.0-x) + model->M[i+1]*x);
+	}
+    else {
+	i = model->nTable - 1;
+	return(model->M[i]*(1.0 + log(r-model->r[i]+1)));
+	}
+    }
+
+double rhoLookup(MODEL *model,double r) {
+    double x,xi,dr;
+    int i;
+
+    i = model->nTable-1;
+    if (r >= model->r[i]) return(model->rho[i]*exp(-(r-model->r[i])));
+    x = r/model->dr;
+    xi = floor(x);
+    assert(xi >= 0.0);
+    x -= xi;
+    i = (int)xi;
+    if (i < 0) {
+	fprintf(stderr,"ERROR r:%.14g x:%.14g xi:%.14g i:%d\n",r,x,xi,i);
+	}
+    assert(i >= 0);
+    if (i < model->nTable-2) {
+	return(model->rho[i]*(1.0-x) + model->rho[i+1]*x);
+	}
+    if (i == model->nTable-2) {
+	dr = model->r[i+1] - model->r[i];
+	x = r/dr;
+	xi = floor(x);
+	x -= xi;
+	return(model->rho[i]*(1.0-x) + model->rho[i+1]*x);
+	}
+    else {
+	i = model->nTable - 1;
+	return(model->rho[i]*exp(-(r-model->r[i])));
+	}
+    }
+
+double uLookup(MODEL *model,double r) {
+    double x,xi,dr;
+    int i;
 
     i = model->nTable-1;
     if (r >= model->r[i]) return(model->u[i]*exp(-(r-model->r[i])));
@@ -408,53 +638,50 @@ int matLookup(MODEL *model,double r) {
 	i = model->nTable - 1;
 	return(model->u[i]*exp(-(r-model->r[i])));
 	}
-#endif
-}
+    }
 
 double Fzero(MODEL *model,int bIcosa,double r,double ri,double m,int ns) {
-	long npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
-	return(MLookup(model,r)-MLookup(model,ri)-npix*m);
-}
+    long npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
+    return(MLookup(model,r)-MLookup(model,ri)-npix*m);
+    }
 
 
 double rShell(MODEL *model,double m,double ri) {
-	double a = ri;
-	double b = 1.0;
-	double c,Mc,Ma;
+    double a = ri;
+    double b = 1.0;
+    double c,Mc,Ma;
 
-	Ma = MLookup(model,a);
-	Mc = 0.0;
-	while (m > (MLookup(model,b)-Ma)) b *= 2.0;
-	while (fabs(m-(Mc-Ma)) > 1e-10*m) {
-		c = 0.5*(a + b);
-		Mc = MLookup(model,c);
-//		fprintf(stderr,"c:%.7g Mc:%.7g\n",c,Mc);
-		if (m > (Mc-Ma)) a = c;
-		else b = c;
+    Ma = MLookup(model,a);
+    Mc = 0.0;
+    while (m > (MLookup(model,b)-Ma)) b *= 2.0;
+    while (fabs(m-(Mc-Ma)) > 1e-10*m) {
+	c = 0.5*(a + b);
+	Mc = MLookup(model,c);
+//	fprintf(stderr,"c:%.7g Mc:%.7g\n",c,Mc);
+	if (m > (Mc-Ma)) a = c;
+	else b = c;
 	}
-	printf("rShell: r=%g ri=%g m=%g\n", c,ri,m);
     return c;
-}
+    }
 
 
 double rShell2(MODEL *model,int bIcosa,double m,double ri,int ns) {
-	double a = ri;
-	double b = 1.0;
-	double c;
-	double z;
+    double a = ri;
+    double b = 1.0;
+    double c;
+    double z;
 
-	z = 1.0;
-	while (Fzero(model,bIcosa,b,ri,m,ns) < 0) b *= 2.0;
-	while ((b-a)/c > 1e-10) {
-		c = 0.5*(a + b);
-		z = Fzero(model,bIcosa,c,ri,m,ns);
-		if (z < 0) a = c;
-		else b = c;
-//		printf("c:%.14g M(c):%.14g\n",c,MLookup(model,c));
+    z = 1.0;
+    while (Fzero(model,bIcosa,b,ri,m,ns) < 0) b *= 2.0;
+    while ((b-a)/c > 1e-10) {
+	c = 0.5*(a + b);
+	z = Fzero(model,bIcosa,c,ri,m,ns);
+	if (z < 0) a = c;
+	else b = c;
+//	printf("c:%.14g M(c):%.14g\n",c,MLookup(model,c));
 	}
-	printf("rShell2: r=%g ri=%g\n", c,ri);
     return c;
-}
+    }
 
 
 void main(int argc, char **argv) {
@@ -491,45 +718,18 @@ void main(int argc, char **argv) {
 	double l1max = 0.0;
 	double l2max = 0.0;
 
-    if (argc != 3) {
-	fprintf(stderr,"Usage: ballic <nDesired> <model.txt> >myball.std\n");
+    if (argc != 4) {
+	fprintf(stderr,"Usage: ballic <nDesired> <TotalMass> <ucore> >myball.std\n");
 	exit(1);
 	}
     nDesired = atoi(argv[1]);
+    mTot = atof(argv[2]);
+    ucore = atof(argv[3]);
 
-	fprintf(stderr,"Initializing model...\n");
-    model = modelInit();
+    model = modelInit(ucore);
+    rhoCenter = modelSolve(model,mTot);
 
-	fprintf(stderr,"Reading...\n");
-	modelRead(model,argv[2]);
-    
-	fprintf(stderr,"Done.\n");
-#if 0
-	rs = 0.1;
-	rs = 1.14236;
-	rs = 1.14246;
-	fprintf(stderr,"M(r=%g)=%g\n",rs, MLookup(model,rs));
-
-	rs=0.0;
-	while (rs < 2.0)
-	{
-		printf("%g  %g  %g  %g  %i\n",rs,MLookup(model,rs),rhoLookup(model,rs),uLookup(model,rs),iRet);
-		rs += 0.01;
-	}
-
-	exit(1);
-#endif
-	/*
-	** This sould work, but in general a rho lookup might be problematic as
-	** the values can be discontinous.
-	*/
-	rhoCenter = rhoLookup(model,0.0);
-
-	mTot = model->M[model->nTable-1];
     m = mTot/nDesired;   /* a first guess at the particle mass */
-	fprintf(stderr,"m=%g mTot=%g\n",m,mTot);
-	assert(m>0.0);
-
     /*
     ** Initialize icosahedral parameters.
     */
@@ -542,8 +742,8 @@ void main(int argc, char **argv) {
     ns = 4;
     npix = 40*ns*(ns-1) + 12;
     for (ipix=0;ipix<nipix;++ipix) {
-		icosaPix2Vec(ctx,ipix,ns,r);
-		printf("%d %g %g %g\n",i,r[0],r[1],r[2]);
+	icosaPix2Vec(ctx,ipix,ns,r);
+	printf("%d %g %g %g\n",i,r[0],r[1],r[2]);
 	}
 #endif
     /*
@@ -564,118 +764,118 @@ void main(int argc, char **argv) {
     */
     fprintf(stderr,"PHASE 1: ODE approach\n");
     for (iter=0;iter<2;++iter) {
-		nReached = 0;
-		if (bCentral) {
-	    	ro = rShell(model,m,0.0);
-		} else {
-		    ro = 0.0;
+	nReached = 0;
+ 	if (bCentral) {
+	    ro = rShell(model,m,0.0);
+	    }
+	else {
+	    ro = 0.0;
+	    }
+	iShell = 0;
+	for (;;) {
+	    ri = ro;
+
+	    na = 1;
+	    roa = rShell2(model,bIcosa,m,ri,na);
+	    npix = (bIcosa)?(40*na*(na-1)+12):(12*na*na);
+	    l1 = roa-ri;
+	    l2 = sqrt(M_PI/npix)*(roa+ri);
+	    rta = l1/l2;
+	    nb = 16;
+	    do {
+		nb *= 2;
+		rob = rShell2(model,bIcosa,m,ri,nb);
+		npix = (bIcosa)?(40*nb*(nb-1)+12):(12*nb*nb);
+		l1 = rob-ri;
+		l2 = sqrt(M_PI/npix)*(rob+ri);
+		rtb = l1/l2;
+		} while (rtb < 1.0);
+	    while (nb - na > 1) {
+		ns = (na+nb)/2;
+		ros = rShell2(model,bIcosa,m,ri,ns);
+		npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
+		l1 = ros-ri;
+		l2 = sqrt(M_PI/npix)*(ros+ri);
+		rts = l1/l2;
+/*		fprintf(stderr,"ns:%d rts:%g\n",ns,rts); */
+		if (rts < 1.0) {
+		    na = ns;
+		    roa = ros;
+		    rta = rts;
+		    }
+		else {
+		    nb = ns;
+		    rob = ros;
+		    rtb = rts;
+		    }
 		}
-		iShell = 0;
-		for (;;) {
-			ri = ro;
-			na = 1;
-			roa = rShell2(model,bIcosa,m,ri,na);
-			npix = (bIcosa)?(40*na*(na-1)+12):(12*na*na);
-			l1 = roa-ri;
-			l2 = sqrt(M_PI/npix)*(roa+ri);
-			rta = l1/l2;
-			nb = 16;
-	    	do {
-				nb *= 2;
-				rob = rShell2(model,bIcosa,m,ri,nb);
-				npix = (bIcosa)?(40*nb*(nb-1)+12):(12*nb*nb);
-				l1 = rob-ri;
-				l2 = sqrt(M_PI/npix)*(rob+ri);
-				rtb = l1/l2;
-			} while (rtb < 1.0);
-	    	while (nb - na > 1) {
-				ns = (na+nb)/2;
-				ros = rShell2(model,bIcosa,m,ri,ns);
-				npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
-				l1 = ros-ri;
-				l2 = sqrt(M_PI/npix)*(ros+ri);
-				rts = l1/l2;
-/*				fprintf(stderr,"ns:%d rts:%g\n",ns,rts); */
-				if (rts < 1.0) {
-		   			na = ns;
-		   			roa = ros;
-		    		rta = rts;
-		  	  	} else {
-				    nb = ns;
-				    rob = ros;
-				    rtb = rts;
-				}
-			}
 /*
-		    if (iShell >= 5) {
-				fprintf(stderr,"na:%d rta:%g\n",na,rta);
-				fprintf(stderr,"nb:%d rtb:%g\n",nb,rtb);
-			}
-*/
-
-			fprintf(stderr,"iShell:%d ns:%d radial/tangential:%g ri:%g ro:%g rta:%g\n",iShell,ns,rts,ri,ro,rta);
-		    /*
-		    ** if the two possible ratios differ by less that 1% then we favour
-		    ** the higher resolution spherical grid (nb).
-		    */
-		    if (1/rta+0.01 < rtb) {
-				ro = roa;
-				ns = na;
-				rts = rta;
-			} else {
-				ro = rob;
-				ns = nb;
-				rts = rtb;
-			}
-
-			fprintf(stderr,"iShell:%d ns:%d radial/tangential:%g ri:%g ro:%g rta:%g\n",iShell,ns,rts,ri,ro,rta);
-	    	npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
-		    if (iShell == nMaxShell) {
-				nMaxShell *= 2;
-				rsShell = realloc(rsShell,nMaxShell*sizeof(double));
-				assert(rsShell != NULL);
-				nsShell = realloc(nsShell,nMaxShell*sizeof(long));
-				assert(nsShell != NULL);
-			}
-	   		nsShell[iShell] = ns;
-/*			fprintf(stderr,"nReached:%d npix:%d\n",nReached,npix);*/
-			if ((nReached + npix) < nDesired) {
-				nReached += npix;
-				// (CR) 23.10.2016
-				fprintf(stderr,"iShell:%d ns:%d radial/tangential:%g ri:%g ro:%g rta:%g\n",iShell,ns,rts,ri,ro,rta);
-				fprintf(stderr,"iShell:%d ns:%d radial/tangential:%g\n",iShell,ns,rts);
-				++iShell;
-			} else {
-				nShell = iShell;
-				break;
-			}
-		}  /* end of iShell loop */
-		ns = nsShell[iShell-1];
-		npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);	
-		if (nDesired - nReached > npix/2) {
-	    	nReached += npix;
-	    	nsShell[nShell] = ns;
-	    	fprintf(stderr,"iShell:%d ns:%d radial/tangential:??? (added)\n",nShell,ns);
-	    	nShell++;
+	    if (iShell >= 5) {
+		fprintf(stderr,"na:%d rta:%g\n",na,rta);
+		fprintf(stderr,"nb:%d rtb:%g\n",nb,rtb);
 		}
-		fprintf(stderr,"nReached:%d old mass:%.7g new mass:%.7g\n",
-	    	nReached,m,mTot/nReached);
-		m = mTot/nReached;
-		nDesired = nReached+1;
+*/
+	    /*
+	    ** if the two possible ratios differ by less that 1% then we favour
+	    ** the higher resolution spherical grid (nb).
+	    */
+	    if (1/rta+0.01 < rtb) {
+		ro = roa;
+		ns = na;
+		rts = rta;
+		}
+	    else {
+		ro = rob;
+		ns = nb;
+		rts = rtb;
+		}
+	    npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
+	    if (iShell == nMaxShell) {
+		nMaxShell *= 2;
+		rsShell = realloc(rsShell,nMaxShell*sizeof(double));
+		assert(rsShell != NULL);
+		nsShell = realloc(nsShell,nMaxShell*sizeof(long));
+		assert(nsShell != NULL);
+		}
+	    nsShell[iShell] = ns;
+/*	fprintf(stderr,"nReached:%d npix:%d\n",nReached,npix);*/
+	    if ((nReached + npix) < nDesired) {
+		nReached += npix;
+		fprintf(stderr,"iShell:%d ns:%d radial/tangential:%g\n",iShell,ns,rts);
+		++iShell;
+		}
+	    else {
+		nShell = iShell;
+		break;
+		}
+	    }  /* end of iShell loop */
+	ns = nsShell[iShell-1];
+	npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);	
+	if (nDesired - nReached > npix/2) {
+	    nReached += npix;
+	    nsShell[nShell] = ns;
+	    fprintf(stderr,"iShell:%d ns:%d radial/tangential:??? (added)\n",nShell,ns);
+	    nShell++;
+	    }
+	fprintf(stderr,"nReached:%d old mass:%.7g new mass:%.7g\n",
+	    nReached,m,mTot/nReached);
+	m = mTot/nReached;
+	nDesired = nReached+1;
 	}
     /*
     ** Phase 2: With the numbers of particles in each of the shells now fixed
     ** we continue by recalculating the radii of the shells based on the updated
     ** particle mass.
     */
-	fprintf(stderr,"PHASE 2\n");
-	if (bCentral) {
-		ro = rShell(model,m,0.0);
-	} else {
-		ro = 0.0;
+    fprintf(stderr,"PHASE 2\n");
+    if (bCentral) {
+	ro = rShell(model,m,0.0);
 	}
-    
-	for (iShell=0;iShell<nShell;++iShell) {
+    else {
+	ro = 0.0;
+	}
+    for (iShell=0;iShell<nShell;++iShell) {
+
 	ri = ro;
 	ns = nsShell[iShell];
 	ro = rShell2(model,bIcosa,m,ri,ns);
@@ -712,6 +912,18 @@ void main(int argc, char **argv) {
 	rho = rhoLookup(model,rs);
 
     u = uLookup(model,rs); /* We also have to look up u from a table */
+
+	eta = rho/model->tillMat[MATERIAL]->rho0;
+	    /* This was the old code using a constant internal energy uFixed.
+	    w0 = model->uFixed/(model->par.u0*eta*eta) + 1.0;
+		dPdrho = (model->par.a + (model->par.b/w0)*(3 - 2/w0))*model->uFixed + 
+		(model->par.A + 2*model->par.B*(eta - 1))/model->par.rho0;
+
+		fprintf(stderr,"iShell:%d r:%g M:%g rho:%g ns:%d radial/tangential:%g dr:%g <? Jeans:%g Gamma:%g\n",iShell,rs,MLookup(model,rs),rho,ns,rts,ro-ri,sqrt(dPdrho/rho),Gamma(model,rho,model->uFixed));
+        */	
+    	w0 = u/(model->tillMat[MATERIAL]->u0*eta*eta) + 1.0;
+        dPdrho = (model->tillMat[MATERIAL]->a + (model->tillMat[MATERIAL]->b/w0)*(3 - 2/w0))*u + 
+        (model->tillMat[MATERIAL]->A + 2*model->tillMat[MATERIAL]->B*(eta - 1))/model->tillMat[MATERIAL]->rho0;
 
 //        fprintf(stderr,"iShell:%d r:%g M:%g rho:%g u:%g ns:%d radial/tangential:%g dr:%g <? Jeans:%g Gamma:%g\n",iShell,rs,MLookup(model,rs),rho,u,ns,rts,ro-ri,sqrt(dPdrho/rho),Gamma(model,rho,u));
         }
@@ -754,7 +966,7 @@ void main(int argc, char **argv) {
 		for (j=0;j<3;++j) gp.pos[j] = 0.0;
 		gp.temp = uLookup(model, 0);
 		// Dont forget to set the material for the central particle
-		gp.metals = matLookup(model,0);
+		gp.metals = MATERIAL;
 		TipsyAddGas(out,&gp);
 	}
     for (iShell=0;iShell<nShell;++iShell) {
@@ -785,15 +997,13 @@ void main(int argc, char **argv) {
 //	    rho = rhoLookup(model,rs);
 	    gp.temp = uLookup(model,rs);
 		// Save Material
-		gp.metals = matLookup(model,rs);
+		gp.metals = MATERIAL;
 	    TipsyAddGas(out,&gp);		
 	    }
 	}
     fprintf(stderr,"Writing %d particles. Model R:%g Last Shell r:%g\n",nReached,model->R,rsShell[nShell-1]);
     TipsyWriteAll(out,0.0,"ballic.std");
-    TipsyFinish(out);
-
-#if 0
+    TipsyFinish(out);    
     /* Smooth with gather doesn work with my version! */
     system("sleep 1; smooth -s 128 density <ballic.std; sleep 1");
 
@@ -823,5 +1033,4 @@ void main(int argc, char **argv) {
     fclose(fpi);
     fclose(fpo);
     assert(nReached == 0);
-#endif
     }
