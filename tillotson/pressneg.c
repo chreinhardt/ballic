@@ -35,7 +35,7 @@ void main(int argc, char **argv) {
 
 	fprintf(stderr, "Initializing material...\n");
 
-	granite = tillInitMaterial(GRANITE, dKpcUnit, dMsolUnit, nTableRho, nTableV, rhomax, vmax, n);
+	granite = tillInitMaterial(BASALT, dKpcUnit, dMsolUnit, nTableRho, nTableV, rhomax, vmax, n);
 	
 	fprintf(stderr,"\n");
 	fprintf(stderr,"rhomax: %g, vmax: %g \n", granite->rhomax, granite->vmax);
@@ -49,10 +49,11 @@ void main(int argc, char **argv) {
 	rho=TILL_RHO_MIN;
 
 #ifdef TILL_PRESS_MELOSH
-	printf("TILL_PRESS_MELOSH defined!\n");
-	exit(1)
+	/* In this case the pressure is set to zero for eta<0.8. */
+	fprintf(stderr,"TILL_PRESS_MELOSH defined!\n");
+	exit(1);
 #endif
-//	rho = 0.0;
+	
 	while (rho <= granite->rho0)
 	{
 		/* Do bisection to find where P<0. */

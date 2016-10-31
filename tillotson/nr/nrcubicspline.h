@@ -21,7 +21,7 @@
 void tridag(double a[], double b[], double c[], double r[], double u[], unsigned long n);
 
 /*
-** Calculate the second derivatives of an interpolated funtion y() for splint().
+** Calculate the second derivatives of an interpolated function y(x) for splint().
 **
 ** x[], y[]:	tabulated function y(x)
 ** n:			number of elements (1 to n)

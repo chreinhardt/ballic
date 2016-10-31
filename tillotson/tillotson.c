@@ -1,5 +1,5 @@
 /*
- ** Copyright (c) 2014-2015 Christian Reinhardt and Joachim Stadel.
+ ** Copyright (c) 2014-2016 Christian Reinhardt and Joachim Stadel.
  **
  ** This file provides all the functions for the Tillotson EOS library.
  ** The Tillotson EOS (e.g. Benz 1986) is a relatively simple but reliable
@@ -104,6 +104,8 @@ TILLMATERIAL *tillInitMaterial(int iMaterial, double dKpcUnit, double dMsolUnit,
 			material->b = 1.3;
 			material->u0 = 1.6e11; /* in ergs/g */
 			material->rho0 = 2.7; /* g/cc */
+//			printf("Using larger reference density for granite!\n");
+//			material->rho0 = 3.32; /* g/cc */
 			material->A = 1.8e11; /* ergs/cc */
 			material->B = 1.8e11; /* ergs/cc */
 			material->us = 3.5e10; /* ergs/g */
@@ -120,10 +122,13 @@ TILLMATERIAL *tillInitMaterial(int iMaterial, double dKpcUnit, double dMsolUnit,
 			material->b = 1.5;
 			material->u0 = 9.5e10; /* in ergs/g */
 			material->rho0 = 7.86; /* g/cc */
-			material->A = 1.28e12; /* ergs/cc */
+			material->A = 1.279e12; /* ergs/cc */
 			material->B = 1.05e12; /* ergs/cc */
-			material->us = 1.425e10; /* ergs/g */
+			material->us = 1.42e10; /* ergs/g */
 			material->us2 = 8.45e10; /* ergs/g */
+//			printf("Using much larger values for us and us2\n");
+//			material->us = 5e10; /* ergs/g */
+//			material->us2 = 8.45e11; /* ergs/g */
 			material->alpha = 5.0;
 			material->beta = 5.0;
 			material->cv = 0.449e7; /* ergs/g K */ 
@@ -136,6 +141,8 @@ TILLMATERIAL *tillInitMaterial(int iMaterial, double dKpcUnit, double dMsolUnit,
 			material->b = 1.5;
 			material->u0 = 4.87e12; /* in ergs/g */
 			material->rho0 = 2.7; /* g/cc */
+//			Using a much larger rho0, to compare to dunite in ANEOS.
+//			material->rho0 = 3.32; /* g/cc */
 			material->A = 2.67e11; /* ergs/cc */
 			material->B = 2.67e11; /* ergs/cc */
 			material->us = 4.72e10; /* ergs/g */
@@ -143,6 +150,25 @@ TILLMATERIAL *tillInitMaterial(int iMaterial, double dKpcUnit, double dMsolUnit,
 			material->alpha = 5.0;
 			material->beta = 5.0;
 			material->cv = 0.84e7; /* ergs/g K */ 
+			break;
+		case ICE:
+			/*
+			** Material parameters from Benz 1999.
+			*/
+			material->a = 0.3;
+			material->b = 0.1;
+			material->u0 = 1.0e11; /* in ergs/g */
+			material->rho0 = 0.917; /* g/cc */
+//			Using a much larger rho0, to compare to dunite in ANEOS.
+//			material->rho0 = 3.32; /* g/cc */
+			material->A = 9.47e10; /* ergs/cc */
+			material->B = 9.47e10; /* ergs/cc */
+			material->us = 7.73e9; /* ergs/g */
+			material->us2 = 3.04e10; /* ergs/g */
+			material->alpha = 10.0;
+			material->beta = 5.0;
+			// Have to look up in more details?
+			material->cv = 1.0e7; /* ergs/g K */ 
 			break;
 		default:
 			/* Unknown material */
@@ -574,7 +600,7 @@ double tilldTdu(TILLMATERIAL *material, double rho, double u)
 double tillPressureRhoU(TILLMATERIAL material, double rho, double u)
 {
 	/* Calculate the pressure from the Tillotson EOS for a material */
-
+	assert(0);
 }
 
 double tillTempRhoU(TILLMATERIAL *material, double rho, double u)
@@ -597,6 +623,55 @@ double tillURhoTemp(TILLMATERIAL *material, double rho, double T)
 {
 	/* Calculate u(rho,T) for a material */
 	return(tillColdULookup(material,rho) + material->cv*T);
+}
+
+double tillRhoPTemp(TILLMATERIAL *material, double P, double T)
+{
+	/* Calculate rho(P,T) for a material */
+	double a, ua, Pa, b, ub, Pb, c, uc, Pc;
+
+	Pc = 0.0;
+
+	/*
+	** We use rhoa=0 and rhob=rhomax as limits.
+	*/
+	a = material->rhomin;
+	ua = tillURhoTemp(material, a, T);
+	Pa = tillPressure(material, a, ua);
+
+	b = material->rhomax*0.99;
+	ub = tillURhoTemp(material, b, T);
+	Pb = tillPressure(material, b, ub);
+	
+	/* What do we do for P=0 in the expanded cold states?*/
+	fprintf(stderr,"tillRhoPTemp: starting with a=%g ua=%g Pa=%g b=%g ub=%g Pb=%g\n",a,ua,Pa,b,ub,Pb);
+	assert (Pa < P && P < Pb);	
+	//fprintf(stderr,"tillRhoPTemp: starting with a=%g ua=%g Pa=%g b=%g ub=%g Pb=%g\n",a,ua,Pa,b,ub,Pb);
+
+    /*
+    ** Root bracketed by (a,b).
+    */
+    while (Pb-Pa > 1e-10) {
+		c = 0.5*(a + b);
+		uc = tillURhoTemp(material,c,T);
+		Pc = tillPressure(material,c, uc);
+		
+		if (Pc < P) {
+			a = c;
+			Pa = Pc;
+		}
+		else {
+			b = c;
+			Pb = Pc;
+		}
+//		fprintf(stderr,"c:%.10g Pc:%.10g\n",c,Pc);
+	}
+
+	fprintf(stderr,"tillRhoPTemp: rhoc=%g uc=%g Pc=%g P=%g T=%g\n",c,uc,Pc,P,T);
+	/*
+	** Return values.
+	*/
+	return(c);
 }
 
 double tillSoundSpeed(TILLMATERIAL *material, double rho, double u)

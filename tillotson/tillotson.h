@@ -7,6 +7,8 @@
 //#include "tillinitlookup.h"
 //#include "tillsplint.h"
 
+//#include "tillwoolfson.h"
+
 #include "interpol/coeff.h"
 #include "interpol/interpol.h"
 #include "nr/nrcubicspline.h"
@@ -14,8 +16,9 @@
 #define GRANITE 0
 #define IRON 1
 #define BASALT 2
+#define ICE 3
 
-#define TILL_N_MATERIAL_MAX 3
+#define TILL_N_MATERIAL_MAX 4
 /* Degree of the spline function we use for interpolation. */
 #define TILL_SPLINE_DEGREE 3
 
@@ -29,6 +32,7 @@ typedef struct till_lookup_entry
 {
 	double u;
 	double rho;
+	double v;
     double u1;		// du/drho
     /*
     ** The following 2 variables are the second derivatives of the above
@@ -38,8 +42,10 @@ typedef struct till_lookup_entry
     */
     double udv2; 	// d2u/dv2
     double u1dv2;	// d2/dv2(du/drho)
+#ifdef TILL_DEBUG_SPLINT
 	// Only for debugging
 	double udrho2;
+#endif
 } TILL_LOOKUP_ENTRY;
 
 typedef TILL_LOOKUP_ENTRY* TILL_LOOKUP;

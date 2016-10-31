@@ -1,9 +1,9 @@
 
 #objects = tillotson.o interpol/coeff.o interpol/interpol.o interpol/brent.o nr/tridag.o nr/spline.o nr/splint.o nr/nrutil.o
 
-objects = tillotson.o tillinitlookup.o tillsplint.o interpol/coeff.o interpol/interpol.o interpol/brent.o nr/nrcubicspline.o nr/nrutil.o
+objects = tillotson.o tillwoolfson.o tillinitlookup.o tillsplint.o interpol/coeff.o interpol/interpol.o interpol/brent.o nr/nrcubicspline.o nr/nrutil.o
 
-exe = table cold coldlookup pressureoldnew lookup lookup_cold testu1 testspline testsplint testsplint2 testsplinerho testsplintrho testsplinev testsplintv testcubicintrho testlookupucold testudrho testudv testgrid testpolyv printderiv printpress pressneg testisintable testrhomin testoutofbounds testsolvebc calcisentrope
+exe = table pressureoldnew lookup lookup_cold testu1 testspline testsplint testnewsplint testsplint2 testsplinerho testsplintrho testsplinev testsplintv testcubicintrho testlookupucold testudrho testudv testgrid testpolyv printderiv printpress pressneg testisintable testrhomin testoutofbounds testsolvebc calcisentrope testrhoptemp
 
 CFLAGS ?= -O3
 
@@ -13,21 +13,22 @@ default:
 all:
 	default
 
+# Debug the function tillLookupU() by comparing the results of the lookup to a
+# direct calculation using tillCalcU() which simply solves the ODE using a RK4
+# integrator.
 table: table.o $(objects)
 	cc -o table table.o $(objects) -lm
 
-cold: cold.o $(objects)
-	cc -o cold cold.o $(objects) -lm
-
-coldlookup: coldlookup.o $(objects)
-	cc -o coldlookup coldlookup.o $(objects) -lm
-
+# Compare the results of tillPressureSoundold() that contains the old code we used in
+# Gasoline and tillPressureSound()
 pressureoldnew: pressureoldnew.o $(objects)
 	cc -o pressureoldnew pressureoldnew.o $(objects) -lm
 
+# Generate a lookup table for a given material
 lookup: lookup.o $(objects)
 	cc -o lookup lookup.o $(objects) -lm
 
+# Make a lookup table for the cold curve
 lookup_cold: lookup_cold.o $(objects)
 	cc -o lookup_cold lookup_cold.o $(objects) -lm
 
@@ -37,8 +38,13 @@ testu1: testu1.o $(objects)
 testspline: testspline.o $(objects)
 	cc -o testspline testspline.o $(objects) -lm
 
+# Code for debugging the interpolation function tillCubicInt()
 testsplint: testsplint.o $(objects)
 	cc -o testsplint testsplint.o $(objects) -lm
+
+# Pretty much the same but it compares the old with the new interpolator 
+testnewsplint: testnewsplint.o $(objects)
+	cc -o testnewsplint testnewsplint.o $(objects) -lm
 
 testsplint2: testsplint2.o $(objects)
 	cc -o testsplint2 testsplint2.o $(objects) -lm
@@ -96,6 +102,9 @@ testsolvebc: testsolvebc.o $(objects)
 
 calcisentrope: calcisentrope.o $(objects)
 	cc -o calcisentrope calcisentrope.o $(objects) -lm
+
+testrhoptemp: testrhoptemp.o $(objects)
+	cc -o testrhoptemp testrhoptemp.o $(objects) -lm
 
 clean:
 	rm $(objects)

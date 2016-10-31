@@ -67,7 +67,6 @@ void tillInitLookup(TILLMATERIAL *material)
     int i,j;
 
 	/* We arrange the look up table as a 1D array with Lookup[i][j] = Lookup[i*Ntable+j] */
-//    material->Lookup = malloc(material->nTableMax*material->nTableMax*sizeof(double));
     material->Lookup = malloc(material->nTableRho*material->nTableV*sizeof(TILL_LOOKUP_ENTRY));
     assert(material->Lookup != NULL);
 
@@ -133,6 +132,7 @@ TILL_LOOKUP_ENTRY *tillSolveIsentrope(TILLMATERIAL *material, double v)
 	i = material->n;
 
 	isentrope[i].rho = rho;
+	isentrope[i].v = v;
 	isentrope[i].u = u;
 	isentrope[i].u1 = tilldudrho(material, rho, u); // du/drho
 	
@@ -167,6 +167,7 @@ TILL_LOOKUP_ENTRY *tillSolveIsentrope(TILLMATERIAL *material, double v)
 
 	    isentrope[i].u = u;
 	    isentrope[i].rho = rho;
+		isentrope[i].v = v;
 		isentrope[i].u1 = tilldudrho(material, rho, u);
 	}
 #else
@@ -189,6 +190,7 @@ TILL_LOOKUP_ENTRY *tillSolveIsentrope(TILLMATERIAL *material, double v)
 
 	    isentrope[i].u = u;
 	    isentrope[i].rho = rho;
+		isentrope[i].v = v;
 		isentrope[i].u1 = tilldudrho(material, rho, u);
 	}
 #endif
@@ -220,6 +222,7 @@ TILL_LOOKUP_ENTRY *tillSolveIsentrope(TILLMATERIAL *material, double v)
 	
 		isentrope[i].u = u;
 	    isentrope[i].rho = rho;
+		isentrope[i].v = v;
 		isentrope[i].u1 = tilldudrho(material, rho, u);
 //#if 0
 		if (i == 0)
@@ -251,6 +254,7 @@ TILL_LOOKUP_ENTRY *tillSolveIsentrope(TILLMATERIAL *material, double v)
 	
 		isentrope[i].u = u;
 	    isentrope[i].rho = rho;
+		isentrope[i].v = v;
 		isentrope[i].u1 = tilldudrho(material, rho, u);
 	}
 #endif

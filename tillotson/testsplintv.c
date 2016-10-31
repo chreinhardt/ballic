@@ -21,10 +21,10 @@ void main(int argc, char **argv) {
 	*/
 	double dKpcUnit = 2.06701e-13;
 	double dMsolUnit = 4.80438e-08;
-	double rhomax = 25.0;
-	double vmax = 25.0;
-	// Try 100 only
-	int nTableMax = 100;
+	double rhomax = 100.0;
+	double vmax = 1200.0;
+	int nTableRho = 1000;
+	int nTableV = 1000;
 	double v, u;
 
 	int i = 0;
@@ -35,32 +35,32 @@ void main(int argc, char **argv) {
 
 	fprintf(stderr, "Initializing material...\n");
 
-	granite = tillInitMaterial(GRANITE, dKpcUnit, dMsolUnit, nTableMax, rhomax, vmax);
+	granite = tillInitMaterial(GRANITE, dKpcUnit, dMsolUnit, nTableRho, nTableV, rhomax, vmax, 1);
 	
 	fprintf(stderr, "Initializing the look up table...\n");
 	/* Solve ODE and splines */
 	tillInitLookup(granite);
 	fprintf(stderr, "Done.\n");
 
-	fprintf(stderr,"nTableMax: %i\n", granite->nTableMax);
+	fprintf(stderr,"nTableRho: %i, nTableV: %i\n", granite->nTableRho,granite->nTableV);
 
 	v = 0.0;
 	u = 0.0;
 
-	i = (granite->vmax/granite->delta)*0.5;
+	i = (granite->vmax/granite->dv)*0.5;
 	i = 10;
-//	for (i=0;i<granite->nTableMax;i++)
+//	for (i=0;i<granite->nTableRho;i++)
 //	{
-		for (j=0;j<granite->nTableMax;j++)
+		for (j=0;j<granite->nTableV;j++)
 		{
-			//v = j*granite->delta
+			//v = j*granite->dv
 			// Choose a point in the middle of the interval
-			v = (j + 0.5)*granite->delta;
+			v = (j + 0.5)*granite->dv;
 			u = tillSplineIntv(granite, v, i);
 
 			fprintf(stderr,"i: %i, j: %i, v: %g, u: %g\n",i,j,v,u);
 
-			printf("%g %g %g\n",i*granite->delta, v, u);
+			printf("%g %g %g\n",i*granite->drho, v, u);
 		}
 		printf("\n");
 //	}

@@ -22,7 +22,11 @@ void main(int argc, char **argv) {
 	*/
 	double dKpcUnit = 2.06701e-13;
 	double dMsolUnit = 4.80438e-08;
+<<<<<<< HEAD
+	double rhomax = 100.0;
+=======
 	double rhomax =25.0;
+>>>>>>> master
 	double vmax = 1200.0;
 	int nTableRho = 1000;
 	int nTableV = 1000;
@@ -78,9 +82,15 @@ void main(int argc, char **argv) {
 
 	j = 51;
 	 	
+<<<<<<< HEAD
+	for (j=0;j<granite->nTableMax;j++)
+	{
+		for (i=0;i<granite->nTableMax;i++)
+=======
 //	for (j=0;j<granite->nTableV;j++)
 //	{
 		for (i=0;i<granite->nTableRho-1;i++)
+>>>>>>> master
 		{
 			//rho = granite->Lookup[INDEX(i,j)].rho;
 			// Choose a point in the middle of the interval
@@ -92,8 +102,13 @@ void main(int argc, char **argv) {
 
 			printf("%g %g %g\n", rho, u, tillCubicIntRho(granite, rho, j));
 		}
+<<<<<<< HEAD
+		printf("\n");
+	}
+=======
 //		printf("\n");
 //	}
+>>>>>>> master
 
 	tillFinalizeMaterial(granite);
 }

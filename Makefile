@@ -20,6 +20,9 @@ ballic: ballic.o $(tipsy_objects)
 single: ballic.single.o $(tipsy_objects) $(till_objects)
 	cc -o ballic.single ballic.single.o $(tipsy_objects) $(till_objects) $(fortran_objects) -lm
 
+multi: ballic.multi.o $(tipsy_objects) $(till_objects)
+	cc -o ballic.multi ballic.multi.o $(tipsy_objects) $(till_objects) $(fortran_objects) -lm
+
 clean:
 	rm $(exe) $(objects)
 
