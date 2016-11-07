@@ -3,23 +3,11 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <assert.h>
+#include "ballic.h"
 #include "tipsy.h"
 #include "tillotson/tillotson.h"
-//#include "ballic.h"
 
-#define max(A,B) ((A) > (B) ? (A) : (B))
-#define min(A,B) ((A) > (B) ? (B) : (A))
-
-// Isentropic thermal profile
-#define BALLIC_U_ISENTROPIC
-
-#define MATERIAL 0
-
-typedef struct icosa_struct {
-    float R[180];
-    float v[36];
-    } ICOSA;
-
+/* Functions for Icosahedron. */
 ICOSA *icosaInit(void) {
     ICOSA *ctx;
     ctx = malloc(sizeof(ICOSA));
@@ -36,7 +24,6 @@ void icosaPix2Vec(ICOSA *ctx,int i,int resolution,double *vec) {
     vec[1] = v[1];
     vec[2] = v[2];
     }
-
 
 /* -----------------------------------------------------------------------------
  *
@@ -139,92 +126,6 @@ void pix2vec_ring( long nside, long ipix, double *vec) {
   
 }
 
-double Packed49[49][3] = {
-    {1.0820379E-008,-3.2300459E-006,    0.7790824},
-    { 0.0851419,      -0.0604194,       0.3497294},
-    {-0.0914288,       0.4137149,       0.6537967},
-    {-0.4233704,      -0.0167043,       0.6537949},
-    { 0.4161716,       0.0795128,       0.6537953},
-    { 0.2606476,      -0.3340458,       0.6537932},
-    {-0.1783143,      -0.3843534,       0.6537934},
-    { 0.3214161,       0.4881783,       0.5151146},
-    {-0.4918671,       0.3793286,       0.4702615},
-    {-0.0929470,       0.3254455,       0.2208710},
-    {-0.5385916,      -0.3977282,       0.3983726},
-    { 0.6544342,      -0.1767253,       0.3839966},
-    {-0.0464433,      -0.6884808,       0.3616719},
-    { 0.6543453 ,      0.2637903 ,      0.3304789},
-    { 0.3839234,      -0.5971428,       0.3209247},
-    {-0.7108776,       0.0012718,       0.3187802},
-    {-0.1876019,      -0.3352532,       0.1368439},
-    { 0.0704146,       0.7351211,       0.2481284},
-    {-0.3638534,       0.6695231,       0.1622308},
-    { 0.3033485,       0.2022102,       0.0692749},
-    { 0.4742969,       0.6067250,       0.1178835},
-    {-0.6795831,       0.3744220,       0.0703152},
-    {-0.3794767,       0.0482692,       0.0303653},
-    { 0.6538247,      -0.4232979,       0.0173632},
-    { 0.2332925,      -0.2885923,       0.0015460},
-    { 0.7790813, -5.7994478E-013,      -0.0012951},
-    {-0.5429419,      -0.5585797,      -0.0131201},
-    {-0.1452212,      -0.7628716,      -0.0625065},
-    {-0.7541588,      -0.1768841,      -0.0832219},
-    { 0.2928920,      -0.7156702,      -0.0948672},
-    {-0.0815266,       0.7567586,      -0.1662504},
-    { 0.6534047,       0.3539813,      -0.2339385},
-    {-0.4662671,       0.5642231,      -0.2668646},
-    { 0.3250845,       0.6429856,      -0.2964101},
-    {-0.6822678,       0.1837015,      -0.3282282},
-    { 0.4930282,      -0.4578927,      -0.3927173},
-    {-0.3428409,      -0.5690840,      -0.4069064},
-    { 0.6530941,      -0.0471244,      -0.4221572},
-    {-0.1036092,       0.2867325,      -0.2191358},
-    { 0.0858176,      -0.5795982,      -0.5134887},
-    {-0.5513357,      -0.1947856,      -0.5148367},
-    { 0.0032634,       0.5253046,      -0.5753380},
-    {-0.1660916,      -0.1851457,      -0.2781839},
-    { 0.3945018,       0.3205518,      -0.5904102},
-    {-0.3693146,       0.2921726,      -0.6206539},
-    { 0.2268184,       0.0121013,      -0.3221586},
-    { 0.2750635,      -0.2203113,      -0.6948182},
-    {-0.1633231,      -0.2729136,      -0.7112054},
-    { 0.0133638,       0.1279994,      -0.7683794}
-    };
-
-
-typedef struct model_ctx {
-	/* Material coefficients from the Tillotson EOS. */
-	TILLMATERIAL **tillMat;
-	int nLayer;
-	/*
-	** This array contains the material number for each layer (e.g., IRON, GRANITE).
-	*/
-	int *iLayer;	
-	double *MLayer;		// Mass of each layer
-
-	/*
-	** Some unit conversion factors.
-	*/
-	double dKpcUnit;
-	double dMsolUnit;
-
-	/*
-	** The lookup table for the equilibrium model.
-	*/
-	int nTableMax;
-	int nTable;
-	double uc; /* u at r = 0 */
-	double *M;
-	double *rho;
-	double *u;
-	double *r;
-	int *mat;
-
-	double dr;
-	double R;
-	} MODEL;
-
-
 MODEL *modelInit(double M,double ucore) {
 	int i;
     /* Initialize the model */
@@ -237,7 +138,7 @@ MODEL *modelInit(double M,double ucore) {
     model->dMsolUnit = 4.80438e-08;
 	
 	/* Hard coded for the moment */
-	model->nLayer = 2;
+	model->nLayer = 1;
 	assert(model->nLayer <= TILL_N_MATERIAL_MAX);
 
 	model->tillMat = malloc(model->nLayer*sizeof(TILLMATERIAL *));
@@ -265,6 +166,11 @@ MODEL *modelInit(double M,double ucore) {
 	model->MLayer[1] = 0.75*M;
 //#endif
 
+//#if 0
+	/* Single component model. */
+	model->iLayer[0] = GRANITE;
+	model->MLayer[0] = 1.0*M;
+//#endif
 	fprintf(stderr,"Initializing model:\n");
 	fprintf(stderr,"Mtot=%g ucore=%g\n",M,ucore);
 
@@ -327,9 +233,6 @@ MODEL *modelInit(double M,double ucore) {
 	return(model);
     }
 
-double drhodr(MODEL *model,int iLayer,double r,double rho,double M,double u);
-double dudr(MODEL *model,int iLayer,double r,double rho,double M,double u);
-
 /*
 ** dudrho depends on the internal energy profile that we choose!
 */
@@ -376,8 +279,6 @@ double dMdr(double r,double rho) {
 	assert(r >= 0.0);
 	return(4.0*M_PI*r*r*rho);
 }
-
-const double fact = 1.0;
 
 /*
 ** Solve for rho2 and u2 using the b.c. P1=P2 and T1=T2.
@@ -740,6 +641,104 @@ double modelSolveTwoComponent(MODEL *model,int bSetModel,double rho,double u,dou
     *pR = r;
 	return(M);
 }
+
+
+/*
+** This function integrates the ODEs for a single component model with b.c.
+** rho_initial=rho, u_initial=u until rho(r=R)=rho0. It returns the total
+** mass of the model. The parameter h sets the stepsize for the RK2 algorithm
+** and for bSetModel=1 the results are saved.
+*/
+double modelSolveSingleComponent(MODEL *model,int bSetModel,double rho,double u,double h,double *pR)
+{
+//    FILE *fp;
+	// Set inital values for M1 and R
+    double M = 0.0;
+	double r = 0.0;
+	double Mc = model->MLayer[0];
+    double k1rho,k1M,k1u,k2rho,k2M,k2u,x;
+	int i = 0;
+
+	assert(model->nLayer == 1);
+
+	// (CR) Debug information
+	fprintf(stderr,"\n");
+	fprintf(stderr,"******************************************************************\n");
+	fprintf(stderr,"modelSolveSingleComponent (inital values):\n");
+	fprintf(stderr,"rho: %g, u: %g, M:%g, r:%g\n",rho,u,M,r);
+	fprintf(stderr,"bSetModel: %i, h: %g\n",bSetModel,h);
+	fprintf(stderr,"******************************************************************\n");
+	fprintf(stderr,"\n");
+
+	/*
+	** Save the values at the core.
+	*/
+	if (bSetModel) {
+		model->rho[i] = rho;
+		model->M[i] = M;
+		model->u[i] = u;
+		model->r[i] = r;
+		model->mat[i] = model->iLayer[0];
+		++i;
+	}
+	
+	/*
+	** The integrate the mantle until rho(r=R)=rho0.
+	*/
+	while (rho > fact*model->tillMat[0]->rho0) {
+		/*
+		** Midpoint Runga-Kutta (2nd order).
+		*/
+		k1rho = h*drhodr(model,0,r,rho,M,u);
+		k1M = h*dMdr(r,rho);
+		k1u = h*dudr(model,0,r,rho,M,u);
+
+		k2rho = h*drhodr(model,0,r+0.5*h,rho+0.5*k1rho,M+0.5*k1M,u+0.5*k1u);
+		k2M = h*dMdr(r+0.5*h,rho+0.5*k1rho);
+		k2u = h*dudr(model,0,r+0.5*h,rho+0.5*k1rho,M+0.5*k1M,u+0.5*k1u);
+
+		rho += k2rho;
+		M += k2M;
+		u += k2u;
+		r += h;
+	
+		if (bSetModel) {
+			model->M[i] = M;
+			model->r[i] = r;
+			model->rho[i] = rho;
+			model->u[i] = u;
+			model->mat[i] = model->iLayer[0];
+			++i;
+			model->nTable = i;
+			model->dr = h;
+		}
+	}
+
+	/*
+	** Now do a linear interpolation to rho == fact*rho0.
+	*/
+	x = (fact*model->tillMat[0]->rho0 - rho)/k2rho;
+	assert(x <= 0.0);
+	r += h*x;
+	M += k2M*x;
+	rho += k2rho*x;
+	u += k2u*x;
+		
+	if (bSetModel) {
+		--i;
+		model->M[i] = M;
+		model->r[i] = r;
+		model->rho[i] = rho;
+		model->u[i] = u;
+		model->mat[i] = model->iLayer[0];
+		++i;
+	}	
+
+	// Return values
+    *pR = r;
+	return(M);
+}
+
 /*
 ** Write the lookup table to ballic.model.
 */
@@ -751,7 +750,9 @@ void modelWriteToFile(MODEL *model)
 	fprintf(stderr,"Writing model to file.\n");
 	fp = fopen("ballic.model","w");
 	assert(fp != NULL);
-	
+
+	// (CR) Some problems here with tillMat[model->mat[i]] as the materials are now stored in the order that they appear
+	// in the model...	
 	fprintf(fp,"#R  rho  M  u  mat tillPressure  tillTempRhoU\n");
 	for (i=0; i<model->nTable;i++)
 	{
@@ -821,7 +822,7 @@ double modelSolveAll(MODEL *model,int bSetModel,double rhoc,double uc,double h,d
 	
 	return(M);
 }
-
+#if 0
 double modelSolve(MODEL *model,double M) {
     const int nStepsMax = 10000;
     int bSetModel;
@@ -889,7 +890,74 @@ double modelSolve(MODEL *model,double M) {
     model->R = R;
     return c;
     }
+#endif
+double modelSolve(MODEL *model,double M) {
+    const int nStepsMax = 10000;
+    int bSetModel;
+    double rmax;
+    double dr,R;
+    double a,Ma,b,Mb,c,Mc;
 
+    /*
+    ** First estimate the maximum possible radius.
+    */
+    R = cbrt(3.0*M/(4.0*M_PI*model->tillMat[model->nLayer-1]->rho0)); // Use lower density material for max radius
+    dr = R/nStepsMax;
+    a = 2.0*model->tillMat[0]->rho0; /* starts with 100% larger central density */
+
+	// (CR) Debug
+	fprintf(stderr,"R: %g a: %g\n",R,a);
+
+	Ma = modelSolveSingleComponent(model,bSetModel=0,a,model->uc,dr,&R);
+//    Ma = modelSolveAll(model,bSetModel=0,a,model->uc,dr,&R);
+    fprintf(stderr,"first Ma:%g R:%g\n",Ma,R);
+    b = a;
+    Mb = 0.5*M;
+    while (Ma > M) {
+		b = a;
+		Mb = Ma;
+		a = 0.5*(model->tillMat[model->iLayer[0]]->rho0 + a);
+		Ma = modelSolveSingleComponent(model,bSetModel=0,a,model->uc,dr,&R);
+//		Ma = modelSolveAll(model,bSetModel=0,a,model->uc,dr,&R);
+	}
+    while (Mb < M) {
+		b = 2.0*b;
+	   	Mb = modelSolveSingleComponent(model,bSetModel=0,b,model->uc,dr,&R);	
+//	   	Mb = modelSolveAll(model,bSetModel=0,b,model->uc,dr,&R);	
+		fprintf(stderr,"first Mb:%g R:%g\n",Mb,R);
+	}
+
+	// (CR) Debug
+	fprintf(stderr,"Root bracketed.\n");
+
+    /*
+    ** Root bracketed by (a,b).
+    */
+    while (Mb-Ma > 1e-10*Mc) {
+		c = 0.5*(a + b);
+        Mc = modelSolveSingleComponent(model,bSetModel=0,c,model->uc,dr,&R);	
+//		Mc = modelSolveAll(model,bSetModel=0,c,model->uc,dr,&R);	
+	if (Mc < M) {
+	    a = c;
+	    Ma = Mc;
+	    }
+	else {
+	    b = c;
+	    Mb = Mc;
+	    }
+//	fprintf(stderr,"c:%.10g Mc:%.10g R:%.10g\n",c/model->tillMat[0]->rho0,Mc,R);
+	}
+    /*
+    ** Solve it once more setting up the lookup table.
+    */
+    fprintf(stderr,"rho_core: %g cv: %g uc: %g (in system units)\n",c,model->tillMat[0]->cv,model->uc);
+    Mc = modelSolveSingleComponent(model,bSetModel=1,c,model->uc,dr,&R);
+	// This is only needed for modelSolveTwoComponent
+	modelWriteToFile(model);
+//    Mc = modelSolveAll(model,bSetModel=1,c,model->uc,dr,&R);
+    model->R = R;
+    return c;
+    }
 /*
 ** This code depends on the arrays being ordered in r but does not change
 ** if M, rho or u are not monotonic. However the discontinuities in rho
@@ -2003,6 +2071,8 @@ void main(int argc, char **argv) {
 		/* Save how many particles we distributed for the last material. */
 		nReachedLastLayer = nReached;
 		iShellLastLayer = iShell;
+
+		fprintf(stderr,"iLayer %i: iShell=%i nReached=%i\n",iLayer, iShell, nReached);
 	} /* iLayer */
  	fprintf(stderr,"\n");
 	fprintf(stderr,"Writing %d particles. Model R:%g Last Shell r:%g\n",nReached,model->R,rsShell[nShell-1]);

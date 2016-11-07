@@ -397,8 +397,8 @@ double drhodr(MODEL *model,double r,double rho,double M,double u) {
 
 
 double dudr(MODEL *model,double r,double rho,double M,double u) {
-//	return(dudrho(model,rho,u)*drhodr(model,r,rho,M,u));
-	return(0.0);
+	return(dudrho(model,rho,u)*drhodr(model,r,rho,M,u));
+//	return(0.0);
 }
 
 /*
