@@ -14,17 +14,20 @@ default:
 all:
 	default
 
-ballic: ballic.o $(tipsy_objects)
+ballic: ballic.o $(tipsy_objects) $(fortran_objects)
+	gfortran -c icosahedron.f
 	cc -o ballic ballic.o $(tipsy_objects) $(fortran_objects) -lm
 
-single: ballic.single.o $(tipsy_objects) $(till_objects)
+single: ballic.single.o $(tipsy_objects) $(till_objects) $(fortran_objects)
+	gfortran -c icosahedron.f
 	cc -o ballic.single ballic.single.o $(tipsy_objects) $(till_objects) $(fortran_objects) -lm
 
-multi: ballic.multi.o $(tipsy_objects) $(till_objects)
+multi: ballic.multi.o $(tipsy_objects) $(till_objects) $(fortran_objects)
+	gfortran -c icosahedron.f
 	cc -o ballic.multi ballic.multi.o $(tipsy_objects) $(till_objects) $(fortran_objects) -lm
 
 clean:
-	rm $(exe) $(objects)
+	rm $(exe) $(objects) 
 
 cleanall:
-	rm  $(exe) $(objects) $(tipsy_objects) $(till_objects)
+	rm  $(exe) $(objects) $(tipsy_objects) $(till_objects) $(fortran_objects)
