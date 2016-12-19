@@ -19,8 +19,6 @@
 // Isentropic thermal profile
 #define BALLIC_U_ISENTROPIC
 
-#define MATERIAL 0
-
 typedef struct icosa_struct {
     float R[180];
     float v[36];
@@ -200,8 +198,7 @@ double Packed49[49][3] = {
 
 typedef struct model_ctx {
 	/* Material coefficients from the Tillotson EOS. */
-	TILLMATERIAL **tillMat;
-	int nMat;
+	TILLMATERIAL *tillMat;
 	/*
 	** Some unit conversion factors.
 	*/
@@ -222,8 +219,7 @@ typedef struct model_ctx {
 	} MODEL;
 
 
-MODEL *modelInit(double ucore) {
-	int i;
+MODEL *modelInit(double ucore, int iMat) {
     /* Initialize the model */
 	MODEL *model;
     
@@ -232,37 +228,33 @@ MODEL *modelInit(double ucore) {
 
     model->dKpcUnit = 2.06701e-13;
     model->dMsolUnit = 4.80438e-08;
-	/* Hard coded */
-	model->nMat = 2;
-	model->tillMat = malloc(model->nMat*sizeof(TILLMATERIAL *));
+	model->tillMat = malloc(sizeof(TILLMATERIAL));
 
-	for (i=0; i<model->nMat; i++)
-	{
-		/*
-		** Initialize one material.
-		** i=0: Granite
-		** i=1: Iron
-		*/
-		model->tillMat[i] = tillInitMaterial(i, model->dKpcUnit, model->dMsolUnit, 100, 100, 50.0, 50.0, 1);
+	/*
+	** Initialize one material.
+	** i=0: Granite
+	** i=1: Iron
+	** i=2: Basalt
+	** i=3: Ice
+	*/
+	model->tillMat = tillInitMaterial(iMat, model->dKpcUnit, model->dMsolUnit, 100, 100, 50.0, 50.0, 1);
 
-		// Debug information
+	// Debug information
 
-		fprintf(stderr,"\n");	
-		fprintf(stderr,"Material: %i\n",i);	
-		fprintf(stderr,"a: %g\n", model->tillMat[i]->a);
-		fprintf(stderr,"b: %g\n", model->tillMat[i]->b);
-		fprintf(stderr,"A: %g\n", model->tillMat[i]->A);
-		fprintf(stderr,"B: %g\n", model->tillMat[i]->B);
-		fprintf(stderr,"rho0: %g\n", model->tillMat[i]->rho0);
-		fprintf(stderr,"u0: %g\n", model->tillMat[i]->u0);
-		fprintf(stderr,"us: %g\n", model->tillMat[i]->us);
-		fprintf(stderr,"us2: %g\n", model->tillMat[i]->us2);
-		fprintf(stderr,"alpha: %g\n", model->tillMat[i]->alpha);
-		fprintf(stderr,"beta: %g\n", model->tillMat[i]->beta);
-   		fprintf(stderr,"cv: %g\n", model->tillMat[i]->cv);
-		fprintf(stderr,"\n");
-	}
-
+	fprintf(stderr,"\n");	
+	fprintf(stderr,"Material: %i\n",iMat);	
+	fprintf(stderr,"a: %g\n", model->tillMat->a);
+	fprintf(stderr,"b: %g\n", model->tillMat->b);
+	fprintf(stderr,"A: %g\n", model->tillMat->A);
+	fprintf(stderr,"B: %g\n", model->tillMat->B);
+	fprintf(stderr,"rho0: %g\n", model->tillMat->rho0);
+	fprintf(stderr,"u0: %g\n", model->tillMat->u0);
+	fprintf(stderr,"us: %g\n", model->tillMat->us);
+	fprintf(stderr,"us2: %g\n", model->tillMat->us2);
+	fprintf(stderr,"alpha: %g\n", model->tillMat->alpha);
+	fprintf(stderr,"beta: %g\n", model->tillMat->beta);
+	fprintf(stderr,"cv: %g\n", model->tillMat->cv);
+	fprintf(stderr,"\n");
 
     /* model->uFixed = uFixed/model->dErgPerGmUnit; */
     model->uc = ucore;
@@ -365,7 +357,7 @@ double dudrho(MODEL *model,double rho,double u) {
 	/*
 	** We assume an isentropic internal energy profile!
 	*/
-	return(tillPressure(model->tillMat[MATERIAL],rho,u)/(rho*rho));
+	return(tillPressure(model->tillMat,rho,u)/(rho*rho));
 #else
   	fprintf(stderr,"No thermal profile defined when compiled!\n");
 	assert(0);
@@ -379,8 +371,8 @@ double dudrho(MODEL *model,double rho,double u) {
 double drhodr(MODEL *model,double r,double rho,double M,double u) {
     double dPdrho,dPdu;
 
-	dPdrho=tilldPdrho(model->tillMat[MATERIAL], rho, u); // dP/drho at u=const.
-	dPdu = tilldPdu(model->tillMat[MATERIAL], rho, u);; // dP/du at rho=const.
+	dPdrho=tilldPdrho(model->tillMat, rho, u); // dP/drho at u=const.
+	dPdu = tilldPdu(model->tillMat, rho, u);; // dP/du at rho=const.
 
 	/*
 	** drho/dr = -G*M*rho/(dPdrho+dPdu*dudrho)
@@ -424,18 +416,19 @@ double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
     int i;
 
     if (bSetModel) {
-	i = 0;
-	model->rho[i] = rho;
-	model->M[i] = M;
-	model->u[i] = u;
-	model->r[i] = r;
-	fp = fopen("ballic.model","w");
-	assert(fp != NULL);
-	/* Output in temperature! */
-   	fprintf(fp,"%g %g %g %g\n",r,rho,M,u);
-	++i;
+		i = 0;
+		model->rho[i] = rho;
+		model->M[i] = M;
+		model->u[i] = u;
+		model->r[i] = r;
+		fp = fopen("ballic.model","w");
+		assert(fp != NULL);
+		/* Output in temperature! */
+		fprintf(fp,"%g %g %g %g\n",r,rho,M,u);
+		++i;
 	}
-    while (rho > fact*model->tillMat[MATERIAL]->rho0) {
+
+    while (rho > fact*model->tillMat->rho0) {
 	/*
 	** Midpoint Runga-Kutta (2nd order).
 	*/
@@ -464,7 +457,7 @@ double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
     /*
     ** Now do a linear interpolation to rho == fact*rho0.
     */
-    x = (fact*model->tillMat[MATERIAL]->rho0 - rho)/k2rho;
+    x = (fact*model->tillMat->rho0 - rho)/k2rho;
     assert(x <= 0.0);
     r += h*x;
     M += k2M*x;
@@ -499,9 +492,9 @@ double modelSolve(MODEL *model,double M) {
     /*
     ** First estimate the maximum possible radius.
     */
-    R = cbrt(3.0*M/(4.0*M_PI*model->tillMat[MATERIAL]->rho0));
+    R = cbrt(3.0*M/(4.0*M_PI*model->tillMat->rho0));
     dr = R/nStepsMax;
-    a = 1.01*model->tillMat[MATERIAL]->rho0; /* starts with 1% larger central density */
+    a = 1.01*model->tillMat->rho0; /* starts with 1% larger central density */
     Ma = midPtRK(model,bSetModel=0,a,dr,&R);
     fprintf(stderr,"first Ma:%g R:%g\n",Ma,R);
     b = a;
@@ -509,7 +502,7 @@ double modelSolve(MODEL *model,double M) {
     while (Ma > M) {
 		b = a;
 		Mb = Ma;
-		a = 0.5*(model->tillMat[MATERIAL]->rho0 + a);
+		a = 0.5*(model->tillMat->rho0 + a);
 		Ma = midPtRK(model,bSetModel=0,a,dr,&R);
 	}
     while (Mb < M) {
@@ -540,7 +533,7 @@ double modelSolve(MODEL *model,double M) {
     /*
     ** Solve it once more setting up the lookup table.
     */
-    fprintf(stderr,"rho_core: %g cv: %g uc: %g (in system units)\n",c,model->tillMat[MATERIAL]->cv,model->uc);
+    fprintf(stderr,"rho_core: %g cv: %g uc: %g (in system units)\n",c,model->tillMat->cv,model->uc);
     Mc = midPtRK(model,bSetModel=1,c,dr,&R);
     model->R = R;
     return c;
@@ -705,8 +698,10 @@ void main(int argc, char **argv) {
     long *nsShell;
     long *isShell;
     double *xyz;
+	// Model
     MODEL *model;
     double ucore;
+	int iMat;
     int iter;
     int nSmooth;
     double d,rho,u,eta,w0,dPdrho;
@@ -718,15 +713,16 @@ void main(int argc, char **argv) {
 	double l1max = 0.0;
 	double l2max = 0.0;
 
-    if (argc != 4) {
-	fprintf(stderr,"Usage: ballic <nDesired> <TotalMass> <ucore> >myball.std\n");
+    if (argc != 5) {
+	fprintf(stderr,"Usage: ballic <nDesired> <TotalMass> <ucore> <iMat> >myball.std\n");
 	exit(1);
 	}
     nDesired = atoi(argv[1]);
     mTot = atof(argv[2]);
     ucore = atof(argv[3]);
+    iMat = atoi(argv[4]);
 
-    model = modelInit(ucore);
+    model = modelInit(ucore, iMat);
     rhoCenter = modelSolve(model,mTot);
 
     m = mTot/nDesired;   /* a first guess at the particle mass */
@@ -913,7 +909,7 @@ void main(int argc, char **argv) {
 
     u = uLookup(model,rs); /* We also have to look up u from a table */
 
-	eta = rho/model->tillMat[MATERIAL]->rho0;
+	eta = rho/model->tillMat->rho0;
 	    /* This was the old code using a constant internal energy uFixed.
 	    w0 = model->uFixed/(model->par.u0*eta*eta) + 1.0;
 		dPdrho = (model->par.a + (model->par.b/w0)*(3 - 2/w0))*model->uFixed + 
@@ -921,9 +917,9 @@ void main(int argc, char **argv) {
 
 		fprintf(stderr,"iShell:%d r:%g M:%g rho:%g ns:%d radial/tangential:%g dr:%g <? Jeans:%g Gamma:%g\n",iShell,rs,MLookup(model,rs),rho,ns,rts,ro-ri,sqrt(dPdrho/rho),Gamma(model,rho,model->uFixed));
         */	
-    	w0 = u/(model->tillMat[MATERIAL]->u0*eta*eta) + 1.0;
-        dPdrho = (model->tillMat[MATERIAL]->a + (model->tillMat[MATERIAL]->b/w0)*(3 - 2/w0))*u + 
-        (model->tillMat[MATERIAL]->A + 2*model->tillMat[MATERIAL]->B*(eta - 1))/model->tillMat[MATERIAL]->rho0;
+    	w0 = u/(model->tillMat->u0*eta*eta) + 1.0;
+        dPdrho = (model->tillMat->a + (model->tillMat->b/w0)*(3 - 2/w0))*u + 
+        (model->tillMat->A + 2*model->tillMat->B*(eta - 1))/model->tillMat->rho0;
 
 //        fprintf(stderr,"iShell:%d r:%g M:%g rho:%g u:%g ns:%d radial/tangential:%g dr:%g <? Jeans:%g Gamma:%g\n",iShell,rs,MLookup(model,rs),rho,u,ns,rts,ro-ri,sqrt(dPdrho/rho),Gamma(model,rho,u));
         }
@@ -959,14 +955,19 @@ void main(int argc, char **argv) {
 	fprintf(stderr,"l1max: %g l2max: %g epsilon: %g\n",l1max,l2max,MAX(l1max,l2max));
     gp.hsmooth = MAX(l1max,l2max);  /* is actually eps for gasoline */
     gp.mass = m;
-    //gp.temp = model->uFixed;   /* Christian's version of gasoline uses thermal energy instead of temperature as input! */
+
+	fprintf(stderr,"hsmooth=%g\n",gp.hsmooth);
+
+	gp.hsmooth=0.001;
+    
+	//gp.temp = model->uFixed;   /* Christian's version of gasoline uses thermal energy instead of temperature as input! */
     nLast = nReached;
     nReached = 0;
     if (bCentral) {
 		for (j=0;j<3;++j) gp.pos[j] = 0.0;
 		gp.temp = uLookup(model, 0);
 		// Dont forget to set the material for the central particle
-		gp.metals = MATERIAL;
+		gp.metals = iMat;
 		TipsyAddGas(out,&gp);
 	}
     for (iShell=0;iShell<nShell;++iShell) {
@@ -977,6 +978,17 @@ void main(int argc, char **argv) {
 	ang1 = 2.0*M_PI*rand()/(RAND_MAX+1.0);
 	ang2 = 2.0*M_PI*rand()/(RAND_MAX+1.0);
 	ang3 = 2.0*M_PI*rand()/(RAND_MAX+1.0);
+
+	/* Experiment with grav. softening. */
+	if (iShell < nShell-1)
+	{
+		// Inner shell
+		gp.hsmooth = 0.001;
+	} else {
+		// Most outer shell
+		gp.hsmooth = 0.01;
+	}
+
 	for (ipix = 0;ipix < npix;++ipix) {
 	    if (bIcosa) icosaPix2Vec(ctx,ipix,ns,r);
 	    else pix2vec_ring(ns,ipix,r);
@@ -997,13 +1009,14 @@ void main(int argc, char **argv) {
 //	    rho = rhoLookup(model,rs);
 	    gp.temp = uLookup(model,rs);
 		// Save Material
-		gp.metals = MATERIAL;
+		gp.metals = iMat;
 	    TipsyAddGas(out,&gp);		
 	    }
 	}
     fprintf(stderr,"Writing %d particles. Model R:%g Last Shell r:%g\n",nReached,model->R,rsShell[nShell-1]);
     TipsyWriteAll(out,0.0,"ballic.std");
     TipsyFinish(out);    
+#if 0
     /* Smooth with gather doesn work with my version! */
     system("sleep 1; smooth -s 128 density <ballic.std; sleep 1");
 
@@ -1033,4 +1046,5 @@ void main(int argc, char **argv) {
     fclose(fpi);
     fclose(fpo);
     assert(nReached == 0);
+#endif
     }
