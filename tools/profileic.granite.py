@@ -15,7 +15,7 @@ tipsyfile = argv[1]
 modelfile = argv[2]
 
 # The cold curve for granite
-coldcurve = loadtxt('~/code/ballic/tools/cold_granite.txt')
+coldcurve = loadtxt('/home/ics/creinh/code/ballic-test/tools/cold_granite.txt')
 model = loadtxt(modelfile)
 
 # Load cold curve
