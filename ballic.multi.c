@@ -138,7 +138,7 @@ MODEL *modelInit(double M,double ucore) {
     model->dMsolUnit = 4.80438e-08;
 	
 	/* Hard coded for the moment */
-	model->nLayer = 1;
+	model->nLayer = 2;
 	assert(model->nLayer <= TILL_N_MATERIAL_MAX);
 
 	model->tillMat = malloc(model->nLayer*sizeof(TILLMATERIAL *));
@@ -152,25 +152,25 @@ MODEL *modelInit(double M,double ucore) {
 
 	/* Hard coded too */
 	model->iLayer[0] = IRON;
-	model->iLayer[1] = GRANITE;
-//	model->iLayer[1] = BASALT;
+//	model->iLayer[1] = GRANITE;
+	model->iLayer[1] = BASALT;
 	// It might be better so save M in model and use only mass fractions in MLayer
 	model->MLayer[0] = 0.3*M;
 	model->MLayer[1] = 0.7*M;
 
-//#if 0
+#if 0
 	/* Debugging ice. */
 	model->iLayer[0] = GRANITE;
 	model->iLayer[1] = ICE;
 	model->MLayer[0] = 0.25*M;
 	model->MLayer[1] = 0.75*M;
-//#endif
+#endif
 
-//#if 0
+#if 0
 	/* Single component model. */
 	model->iLayer[0] = GRANITE;
 	model->MLayer[0] = 1.0*M;
-//#endif
+#endif
 	fprintf(stderr,"Initializing model:\n");
 	fprintf(stderr,"Mtot=%g ucore=%g\n",M,ucore);
 
@@ -745,6 +745,7 @@ double modelSolveSingleComponent(MODEL *model,int bSetModel,double rho,double u,
 void modelWriteToFile(MODEL *model)
 {
 	FILE *fp;
+	int iLayer;
 	int i;
 
 	fprintf(stderr,"Writing model to file.\n");
@@ -752,13 +753,27 @@ void modelWriteToFile(MODEL *model)
 	assert(fp != NULL);
 
 	// (CR) Some problems here with tillMat[model->mat[i]] as the materials are now stored in the order that they appear
-	// in the model...	
+	// in the model, e.g., tillMat[iMatLayer1, iMatLayer2,...].	
 	fprintf(fp,"#R  rho  M  u  mat tillPressure  tillTempRhoU\n");
 	for (i=0; i<model->nTable;i++)
 	{
-		fprintf(fp,"%g %g %g %g %i %g %g\n",model->r[i],model->rho[i],model->M[i],model->u[i],model->mat[i],
+		/* Check which Layer it is from the material. This should be optimized and generalized for more layers!! */
+		if (model->mat[i] == model->iLayer[0])
+		{
+			iLayer = 0;
+		} else {
+			iLayer = 1;
+		}
+/*		fprintf(fp,"%g %g %g %g %i %g %g\n",model->r[i],model->rho[i],model->M[i],model->u[i],model->mat[i],
 			tillPressure(model->tillMat[model->mat[i]], model->rho[i], model->u[i]),
 			tillTempRhoU(model->tillMat[model->mat[i]], model->rho[i], model->u[i]));
+*/
+		fprintf(fp,"%g %g %g %g %i %g %g\n",model->r[i],model->rho[i],model->M[i],model->u[i],model->mat[i],
+			tillPressure(model->tillMat[iLayer], model->rho[i], model->u[i]),
+			tillTempRhoU(model->tillMat[iLayer], model->rho[i], model->u[i]));
+//		fprintf(fp,"%g %g %g %g %i\n",model->r[i],model->rho[i],model->M[i],model->u[i],model->mat[i]);
+
+	
 	}
 	fclose(fp);
 }
@@ -822,7 +837,7 @@ double modelSolveAll(MODEL *model,int bSetModel,double rhoc,double uc,double h,d
 	
 	return(M);
 }
-#if 0
+
 double modelSolve(MODEL *model,double M) {
     const int nStepsMax = 10000;
     int bSetModel;
@@ -840,8 +855,9 @@ double modelSolve(MODEL *model,double M) {
 	// (CR) Debug
 	fprintf(stderr,"R: %g a: %g\n",R,a);
 
+//	Ma = modelSolveSingleComponent(model,bSetModel=0,a,model->uc,dr,&R);
 	Ma = modelSolveTwoComponent(model,bSetModel=0,a,model->uc,dr,&R);
-//    Ma = modelSolveAll(model,bSetModel=0,a,model->uc,dr,&R);
+//	Ma = modelSolveAll(model,bSetModel=0,a,model->uc,dr,&R);
     fprintf(stderr,"first Ma:%g R:%g\n",Ma,R);
     b = a;
     Mb = 0.5*M;
@@ -849,12 +865,14 @@ double modelSolve(MODEL *model,double M) {
 		b = a;
 		Mb = Ma;
 		a = 0.5*(model->tillMat[model->iLayer[0]]->rho0 + a);
+//		Ma = modelSolveSingleComponent(model,bSetModel=0,a,model->uc,dr,&R);
 		Ma = modelSolveTwoComponent(model,bSetModel=0,a,model->uc,dr,&R);
 //		Ma = modelSolveAll(model,bSetModel=0,a,model->uc,dr,&R);
 	}
     while (Mb < M) {
 		b = 2.0*b;
-	   	Mb = modelSolveTwoComponent(model,bSetModel=0,b,model->uc,dr,&R);	
+//	   	Mb = modelSolveSingleComponent(model,bSetModel=0,b,model->uc,dr,&R);	
+		Mb = modelSolveTwoComponent(model,bSetModel=0,b,model->uc,dr,&R);	
 //	   	Mb = modelSolveAll(model,bSetModel=0,b,model->uc,dr,&R);	
 		fprintf(stderr,"first Mb:%g R:%g\n",Mb,R);
 	}
@@ -867,7 +885,8 @@ double modelSolve(MODEL *model,double M) {
     */
     while (Mb-Ma > 1e-10*Mc) {
 		c = 0.5*(a + b);
-        Mc = modelSolveTwoComponent(model,bSetModel=0,c,model->uc,dr,&R);	
+//		Mc = modelSolveSingleComponent(model,bSetModel=0,c,model->uc,dr,&R);
+		Mc = modelSolveTwoComponent(model,bSetModel=0,c,model->uc,dr,&R);
 //		Mc = modelSolveAll(model,bSetModel=0,c,model->uc,dr,&R);	
 	if (Mc < M) {
 	    a = c;
@@ -883,75 +902,8 @@ double modelSolve(MODEL *model,double M) {
     ** Solve it once more setting up the lookup table.
     */
     fprintf(stderr,"rho_core: %g cv: %g uc: %g (in system units)\n",c,model->tillMat[0]->cv,model->uc);
-    Mc = modelSolveTwoComponent(model,bSetModel=1,c,model->uc,dr,&R);
-	// This is only needed for modelSolveTwoComponent
-	modelWriteToFile(model);
-//    Mc = modelSolveAll(model,bSetModel=1,c,model->uc,dr,&R);
-    model->R = R;
-    return c;
-    }
-#endif
-double modelSolve(MODEL *model,double M) {
-    const int nStepsMax = 10000;
-    int bSetModel;
-    double rmax;
-    double dr,R;
-    double a,Ma,b,Mb,c,Mc;
-
-    /*
-    ** First estimate the maximum possible radius.
-    */
-    R = cbrt(3.0*M/(4.0*M_PI*model->tillMat[model->nLayer-1]->rho0)); // Use lower density material for max radius
-    dr = R/nStepsMax;
-    a = 2.0*model->tillMat[0]->rho0; /* starts with 100% larger central density */
-
-	// (CR) Debug
-	fprintf(stderr,"R: %g a: %g\n",R,a);
-
-	Ma = modelSolveSingleComponent(model,bSetModel=0,a,model->uc,dr,&R);
-//    Ma = modelSolveAll(model,bSetModel=0,a,model->uc,dr,&R);
-    fprintf(stderr,"first Ma:%g R:%g\n",Ma,R);
-    b = a;
-    Mb = 0.5*M;
-    while (Ma > M) {
-		b = a;
-		Mb = Ma;
-		a = 0.5*(model->tillMat[model->iLayer[0]]->rho0 + a);
-		Ma = modelSolveSingleComponent(model,bSetModel=0,a,model->uc,dr,&R);
-//		Ma = modelSolveAll(model,bSetModel=0,a,model->uc,dr,&R);
-	}
-    while (Mb < M) {
-		b = 2.0*b;
-	   	Mb = modelSolveSingleComponent(model,bSetModel=0,b,model->uc,dr,&R);	
-//	   	Mb = modelSolveAll(model,bSetModel=0,b,model->uc,dr,&R);	
-		fprintf(stderr,"first Mb:%g R:%g\n",Mb,R);
-	}
-
-	// (CR) Debug
-	fprintf(stderr,"Root bracketed.\n");
-
-    /*
-    ** Root bracketed by (a,b).
-    */
-    while (Mb-Ma > 1e-10*Mc) {
-		c = 0.5*(a + b);
-        Mc = modelSolveSingleComponent(model,bSetModel=0,c,model->uc,dr,&R);	
-//		Mc = modelSolveAll(model,bSetModel=0,c,model->uc,dr,&R);	
-	if (Mc < M) {
-	    a = c;
-	    Ma = Mc;
-	    }
-	else {
-	    b = c;
-	    Mb = Mc;
-	    }
-//	fprintf(stderr,"c:%.10g Mc:%.10g R:%.10g\n",c/model->tillMat[0]->rho0,Mc,R);
-	}
-    /*
-    ** Solve it once more setting up the lookup table.
-    */
-    fprintf(stderr,"rho_core: %g cv: %g uc: %g (in system units)\n",c,model->tillMat[0]->cv,model->uc);
-    Mc = modelSolveSingleComponent(model,bSetModel=1,c,model->uc,dr,&R);
+//    Mc = modelSolveSingleComponent(model,bSetModel=1,c,model->uc,dr,&R);
+	Mc = modelSolveTwoComponent(model,bSetModel=1,c,model->uc,dr,&R);
 	// This is only needed for modelSolveTwoComponent
 	modelWriteToFile(model);
 //    Mc = modelSolveAll(model,bSetModel=1,c,model->uc,dr,&R);
@@ -1099,596 +1051,15 @@ double rShell2(MODEL *model,int bIcosa,double m,double ri,int ns) {
 	return c;
 	}
 
-#if 0
 /*
 ** Generate a HEALPix or Icosahedron grid and distribute the particles on it.
-** Mass:		Desired mass
+** mTot:		Desired mass total mass
 ** nDesired:	Desired number of particles (can vary due to constraints from the grid)
-** iMat:		Material for the Tillotson EOS
-** TipsyOut:	Array where the tipsy particles are stored
-** rStart:		Inner radius of the model (e.g. zero for the core and R_CMB for the mantle)
+** ucore:		Value of the total energy in the center of the model (ucore = u(r=0))
 ** bCentral:	Do we want a central particle
 ** bIcosa:		Use Icosahedron grid (if 0 use HEALPIX) 
-*/
-void ballicSolve(MODEL *model,double mass,int nDesired,int iMat,TCTX *TipsyOut,double rStart,  )
-{
-
-    const int bCentral = 1;
-    int bIcosa = 0;
-    const int bRandomRotate = 1;
-    long ns,npix,ipix,na,nb;
-    struct gas_particle gp;
-    double r[3];
-    double rhoCenter;
-    double ri,ro,rs,roa,rob,ros,rta,rtb,rts;
-    double m,l1,l2,nsf;
-    double x,y,ang1,ang2,ang3;
-    int j,iShell,nDesired,nReached,nLast;
-    double theta,phi;
-    float rr[3];
-    ICOSA *ctx;
-    int nShell,nMaxShell;
-    double *rsShell;
-    long *nsShell;
-    long *isShell;
-    double *xyz;
-    int iter;
-    int nSmooth;
-    double d,rho,u,eta,w0,dPdrho;
-    int iRet,i;
-	double mCore;
-	/* A first guess for the number of particles in the core from Mcore/Mtot. */
-
-	
-	/* Get command line parameters. */
-	nDesired = atoi(argv[1]);
-	mTot = atof(argv[2]);
-	ucore = atof(argv[3]);
-
-    model = modelInit(mTot,ucore);
-	double R = 0.0;
-
-    rhoCenter = modelSolve(model,mTot);
-
-	/*
-	** Desired number of particles in the core (Nc=fc*N).
-	*/
-	mCore = model->fM[0];
-	nDesiredCore = mCore/mTot*nDesired;
-
-	//m = mTot/nDesired;   /* a first guess at the particle mass */
-
-    /*
-    ** Initialize icosahedral parameters.
-    */
-    ctx = icosaInit();
-
-    /*
-    ** Initialize the array of shell radii and resolutions.
-    */
-    nMaxShell = 1000;
-    nShell = 0;
-    rsShell = malloc(nMaxShell*sizeof(double));
-    assert(rsShell != NULL);
-    nsShell = malloc(nMaxShell*sizeof(long));
-    assert(nsShell != NULL);
-    isShell = malloc(nMaxShell*sizeof(long));
-    assert(nsShell != NULL);
-	
-	/*
-	** First we distribute the particles in the core.
-	*/
-	m = mCore/nDesiredCore;   /* a first guess at the particle mass */
-
-
-
-    /*
-    ** Phase 1: We first determine the number of particles per shell such that
-    ** the ratio of radial to tangential lengths of their volumes is as close
-    ** to 1 as possible. This fixes the total number of particles in the model.
-    */
-    fprintf(stderr,"PHASE 1: ODE approach\n");
-    for (iter=0;iter<2;++iter) {
-		nReached = 0;
-		if (bCentral) {
-	    	ro = rShell(model,m,0.0);
-		}
-		else {
-	    	ro = 0.0;
-		}
-		iShell = 0;
-		for (;;) {
-	    	ri = ro;
-
-		    na = 1;
-		    roa = rShell2(model,bIcosa,m,ri,na);
-		    npix = (bIcosa)?(40*na*(na-1)+12):(12*na*na);
-		    l1 = roa-ri;
-		    l2 = sqrt(M_PI/npix)*(roa+ri);
-		    rta = l1/l2;
-		    nb = 16;
-
-		    do {
-				nb *= 2;
-				rob = rShell2(model,bIcosa,m,ri,nb);
-				npix = (bIcosa)?(40*nb*(nb-1)+12):(12*nb*nb);
-				l1 = rob-ri;
-				l2 = sqrt(M_PI/npix)*(rob+ri);
-				rtb = l1/l2;
-			} while (rtb < 1.0);
-
-			while (nb - na > 1) {
-				ns = (na+nb)/2;
-				ros = rShell2(model,bIcosa,m,ri,ns);
-				npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
-				l1 = ros-ri;
-				l2 = sqrt(M_PI/npix)*(ros+ri);
-				rts = l1/l2;
-/*				fprintf(stderr,"ns:%d rts:%g\n",ns,rts); */
-				if (rts < 1.0) {
-					na = ns;
-					roa = ros;
-					rta = rts;
-				}
-				else {
-					nb = ns;
-					rob = ros;
-					rtb = rts;
-				}
-			}
-/*
-			if (iShell >= 5) {
-				fprintf(stderr,"na:%d rta:%g\n",na,rta);
-				fprintf(stderr,"nb:%d rtb:%g\n",nb,rtb);
-			}
-*/
-			/*
-			** if the two possible ratios differ by less that 1% then we favour
-			** the higher resolution spherical grid (nb).
-			*/
-			if (1/rta+0.01 < rtb) {
-				ro = roa;
-				ns = na;
-				rts = rta;
-			}
-			else {
-				ro = rob;
-				ns = nb;
-				rts = rtb;
-			}
-
-			npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
-			if (iShell == nMaxShell) {
-				nMaxShell *= 2;
-				rsShell = realloc(rsShell,nMaxShell*sizeof(double));
-				assert(rsShell != NULL);
-				nsShell = realloc(nsShell,nMaxShell*sizeof(long));
-				assert(nsShell != NULL);
-			}
-			nsShell[iShell] = ns;
-/*			fprintf(stderr,"nReached:%d npix:%d\n",nReached,npix);*/
-			if ((nReached + npix) < nDesired) {
-				nReached += npix;
-				fprintf(stderr,"iShell:%d ns:%d radial/tangential:%g\n",iShell,ns,rts);
-				++iShell;
-			}
-			else {
-				nShell = iShell;
-				break;
-			}
-		}  /* end of iShell loop */
-		ns = nsShell[iShell-1];
-		npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);	
-		if (nDesired - nReached > npix/2) {
-			nReached += npix;
-			nsShell[nShell] = ns;
-			fprintf(stderr,"iShell:%d ns:%d radial/tangential:??? (added)\n",nShell,ns);
-			nShell++;
-		}
-		fprintf(stderr,"nReached:%d old mass:%.7g new mass:%.7g\n",
-			nReached,m,mTot/nReached);
-		/* Update guess for the particle mass */
-		m = mass/nReached;
-//		m = mTot/nReached;
-		nDesired = nReached+1;
-	}
-    /*
-    ** Phase 2: With the numbers of particles in each of the shells now fixed
-    ** we continue by recalculating the radii of the shells based on the updated
-    ** particle mass.
-    */
-	fprintf(stderr,"PHASE 2\n");
-	if (bCentral) {
-		ro = rShell(model,m,0.0);
-	}
-	else {
-		ro = 0.0;
-	}
-	for (iShell=0;iShell<nShell;++iShell) {
-		ri = ro;
-		ns = nsShell[iShell];
-		ro = rShell2(model,bIcosa,m,ri,ns);
-		npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
-		l1 = ro-ri;
-		l2 = sqrt(M_PI/npix)*(ro+ri);
-		rts = l1/l2;
-		/*
-		** Here we calculate the optimal softening for gravity using the
-		** largest bin size. l1: radial size, l2: tangental size
-		*/
-		if (l1 > l1max) {
-			l1max = l1;
-		}
-		if (l2 > l2max) {
-			l2max = l2;
-		}
-
-		if (bIcosa) {
-	    	d = 1.0;
-			if (iShell == 0) d = 2.5;
-			if (iShell == 1) d = 1.0;
-			if (iShell == 2) d = 3.0;
-		}
-		else {
-			d = 1.9;
-			if (iShell == 0) d = 2.0;
-			if (iShell == 1) d = 1.5;
-		}
-
-		rs = rsShell[iShell] = pow(0.5*(pow(ri,d) + pow(ro,d)),1/d);
-
-		rho = rhoLookup(model,rs);
-
-		u = uLookup(model,rs); /* We also have to look up u from a table */
-
-		eta = rho/model->tillMat[MATERIAL]->rho0;
-		/* This was the old code using a constant internal energy uFixed.
-		w0 = model->uFixed/(model->par.u0*eta*eta) + 1.0;
-		dPdrho = (model->par.a + (model->par.b/w0)*(3 - 2/w0))*model->uFixed + 
-				(model->par.A + 2*model->par.B*(eta - 1))/model->par.rho0;
-
-		fprintf(stderr,"iShell:%d r:%g M:%g rho:%g ns:%d radial/tangential:%g dr:%g <? Jeans:%g Gamma:%g\n",iShell,rs,MLookup(model,rs),rho,ns,rts,ro-ri,sqrt(dPdrho/rho),Gamma(model,rho,model->uFixed));
-        */	
-		w0 = u/(model->tillMat[MATERIAL]->u0*eta*eta) + 1.0;
-		dPdrho = (model->tillMat[MATERIAL]->a + (model->tillMat[MATERIAL]->b/w0)*(3 - 2/w0))*u + 
-				(model->tillMat[MATERIAL]->A + 2*model->tillMat[MATERIAL]->B*(eta - 1))/model->tillMat[MATERIAL]->rho0;
-
-//        fprintf(stderr,"iShell:%d r:%g M:%g rho:%g u:%g ns:%d radial/tangential:%g dr:%g <? Jeans:%g Gamma:%g\n",iShell,rs,MLookup(model,rs),rho,u,ns,rts,ro-ri,sqrt(dPdrho/rho),Gamma(model,rho,u));
-	}
-	/*
-	** Now generate the coordinates of all the particles in each shell as they are on the unit
-	** sphere. This simplifies the later adjusting of the radii of the shells (unit sphere 
-	** coordinates are independent of this.
-	*/
-
-	/*
-	** Phase 3: With the masses and numbers of the particles fixed and the 
-	** as well as their angular positions, we now attempt to use an SPH density
-	** estimate to calculate the mean radial pressure force on the shell 
-	** and converge on the radius of the shell such that it is balanced by
-	** gravity on the shell (analytic).
-	*/
-	if (bCentral) {
-		/*
-		** First adjust the density of the central particle.
-		*/
-	}
-
-	/*
-	** Now output the particles.
-	*/
-	TipsyInitialize(&out,0,NULL);
-
-	for (j=0;j<3;++j) gp.vel[j] = 0.0;
-	gp.phi = 0.0;
-	/*
-	** As a first guess we use max(l1max,l2max) for the softening.
-	*/
-	fprintf(stderr,"l1max: %g l2max: %g epsilon: %g\n",l1max,l2max,MAX(l1max,l2max));
-	gp.hsmooth = MAX(l1max,l2max);  /* is actually eps for gasoline */
-	gp.mass = m;
-	//gp.temp = model->uFixed;   /* Christian's version of gasoline uses thermal energy instead of temperature as input! */
-	nLast = nReached;
-	nReached = 0;
-	if (bCentral) {
-		for (j=0;j<3;++j) gp.pos[j] = 0.0;
-		gp.temp = uLookup(model, 0);
-		// Dont forget to set the material for the central particle
-		gp.metals = model->iMatOrder[0];
-		TipsyAddGas(out,&gp);
-	}
-	for (iShell=0;iShell<nShell;++iShell) {
-		rs = rsShell[iShell];
-		ns = nsShell[iShell];
-		npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
-		nReached += npix;
-		ang1 = 2.0*M_PI*rand()/(RAND_MAX+1.0);
-		ang2 = 2.0*M_PI*rand()/(RAND_MAX+1.0);
-		ang3 = 2.0*M_PI*rand()/(RAND_MAX+1.0);
-		for (ipix = 0;ipix < npix;++ipix) {
-			if (bIcosa) icosaPix2Vec(ctx,ipix,ns,r);
-			else pix2vec_ring(ns,ipix,r);
-			if (bRandomRotate) {
-				y = r[1]*cos(ang1) - r[2]*sin(ang1);
-				r[2] = r[1]*sin(ang1) + r[2]*cos(ang1);
-				
-				x = r[0]*cos(ang2) - r[2]*sin(ang2);
-				r[2] = r[0]*sin(ang2) + r[2]*cos(ang2);
-				r[0] = x;
-
-				r[1] = y*cos(ang3) - r[2]*sin(ang3);
-				r[2] = y*sin(ang3) + r[2]*cos(ang3);
-			}
-
-    /*
-    ** Phase 1: We first determine the number of particles per shell such that
-    ** the ratio of radial to tangential lengths of their volumes is as close
-    ** to 1 as possible. This fixes the total number of particles in the model.
-    */
-    fprintf(stderr,"PHASE 1: ODE approach\n");
-    for (iter=0;iter<2;++iter) {
-		nReached = 0;
-		if (bCentral) {
-	    	ro = rShell(model,m,0.0);
-		}
-		else {
-	    	ro = 0.0;
-		}
-		iShell = 0;
-		for (;;) {
-	    	ri = ro;
-
-		    na = 1;
-		    roa = rShell2(model,bIcosa,m,ri,na);
-		    npix = (bIcosa)?(40*na*(na-1)+12):(12*na*na);
-		    l1 = roa-ri;
-		    l2 = sqrt(M_PI/npix)*(roa+ri);
-		    rta = l1/l2;
-		    nb = 16;
-
-		    do {
-				nb *= 2;
-				rob = rShell2(model,bIcosa,m,ri,nb);
-				npix = (bIcosa)?(40*nb*(nb-1)+12):(12*nb*nb);
-				l1 = rob-ri;
-				l2 = sqrt(M_PI/npix)*(rob+ri);
-				rtb = l1/l2;
-			} while (rtb < 1.0);
-
-			while (nb - na > 1) {
-				ns = (na+nb)/2;
-				ros = rShell2(model,bIcosa,m,ri,ns);
-				npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
-				l1 = ros-ri;
-				l2 = sqrt(M_PI/npix)*(ros+ri);
-				rts = l1/l2;
-/*				fprintf(stderr,"ns:%d rts:%g\n",ns,rts); */
-				if (rts < 1.0) {
-					na = ns;
-					roa = ros;
-					rta = rts;
-				}
-				else {
-					nb = ns;
-					rob = ros;
-					rtb = rts;
-				}
-			}
-/*
-			if (iShell >= 5) {
-				fprintf(stderr,"na:%d rta:%g\n",na,rta);
-				fprintf(stderr,"nb:%d rtb:%g\n",nb,rtb);
-			}
-*/
-			/*
-			** if the two possible ratios differ by less that 1% then we favour
-			** the higher resolution spherical grid (nb).
-			*/
-			if (1/rta+0.01 < rtb) {
-				ro = roa;
-				ns = na;
-				rts = rta;
-			}
-			else {
-				ro = rob;
-				ns = nb;
-				rts = rtb;
-			}
-
-			npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
-			if (iShell == nMaxShell) {
-				nMaxShell *= 2;
-				rsShell = realloc(rsShell,nMaxShell*sizeof(double));
-				assert(rsShell != NULL);
-				nsShell = realloc(nsShell,nMaxShell*sizeof(long));
-				assert(nsShell != NULL);
-			}
-			nsShell[iShell] = ns;
-/*			fprintf(stderr,"nReached:%d npix:%d\n",nReached,npix);*/
-			if ((nReached + npix) < nDesired) {
-				nReached += npix;
-				fprintf(stderr,"iShell:%d ns:%d radial/tangential:%g\n",iShell,ns,rts);
-				++iShell;
-			}
-			else {
-				nShell = iShell;
-				break;
-			}
-		}  /* end of iShell loop */
-		ns = nsShell[iShell-1];
-		npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);	
-		if (nDesired - nReached > npix/2) {
-			nReached += npix;
-			nsShell[nShell] = ns;
-			fprintf(stderr,"iShell:%d ns:%d radial/tangential:??? (added)\n",nShell,ns);
-			nShell++;
-		}
-		fprintf(stderr,"nReached:%d old mass:%.7g new mass:%.7g\n",
-			nReached,m,mTot/nReached);
-		// Guess for particles mass in the core.
-		m = mTot/nReached;
-//		m = mTot/nReached;
-		nDesired = nReached+1;
-	}
-    /*
-    ** Phase 2: With the numbers of particles in each of the shells now fixed
-    ** we continue by recalculating the radii of the shells based on the updated
-    ** particle mass.
-    */
-	fprintf(stderr,"PHASE 2\n");
-	if (bCentral) {
-		ro = rShell(model,m,0.0);
-	}
-	else {
-		ro = 0.0;
-	}
-	for (iShell=0;iShell<nShell;++iShell) {
-		ri = ro;
-		ns = nsShell[iShell];
-		ro = rShell2(model,bIcosa,m,ri,ns);
-		npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
-		l1 = ro-ri;
-		l2 = sqrt(M_PI/npix)*(ro+ri);
-		rts = l1/l2;
-		/*
-		** Here we calculate the optimal softening for gravity using the
-		** largest bin size. l1: radial size, l2: tangental size
-		*/
-		if (l1 > l1max) {
-			l1max = l1;
-		}
-		if (l2 > l2max) {
-			l2max = l2;
-		}
-
-		if (bIcosa) {
-	    	d = 1.0;
-			if (iShell == 0) d = 2.5;
-			if (iShell == 1) d = 1.0;
-			if (iShell == 2) d = 3.0;
-		}
-		else {
-			d = 1.9;
-			if (iShell == 0) d = 2.0;
-			if (iShell == 1) d = 1.5;
-		}
-
-		rs = rsShell[iShell] = pow(0.5*(pow(ri,d) + pow(ro,d)),1/d);
-
-		rho = rhoLookup(model,rs);
-
-		u = uLookup(model,rs); /* We also have to look up u from a table */
-
-		eta = rho/model->tillMat[MATERIAL]->rho0;
-		/* This was the old code using a constant internal energy uFixed.
-		w0 = model->uFixed/(model->par.u0*eta*eta) + 1.0;
-		dPdrho = (model->par.a + (model->par.b/w0)*(3 - 2/w0))*model->uFixed + 
-				(model->par.A + 2*model->par.B*(eta - 1))/model->par.rho0;
-
-		fprintf(stderr,"iShell:%d r:%g M:%g rho:%g ns:%d radial/tangential:%g dr:%g <? Jeans:%g Gamma:%g\n",iShell,rs,MLookup(model,rs),rho,ns,rts,ro-ri,sqrt(dPdrho/rho),Gamma(model,rho,model->uFixed));
-        */	
-		w0 = u/(model->tillMat[MATERIAL]->u0*eta*eta) + 1.0;
-		dPdrho = (model->tillMat[MATERIAL]->a + (model->tillMat[MATERIAL]->b/w0)*(3 - 2/w0))*u + 
-				(model->tillMat[MATERIAL]->A + 2*model->tillMat[MATERIAL]->B*(eta - 1))/model->tillMat[MATERIAL]->rho0;
-
-//        fprintf(stderr,"iShell:%d r:%g M:%g rho:%g u:%g ns:%d radial/tangential:%g dr:%g <? Jeans:%g Gamma:%g\n",iShell,rs,MLookup(model,rs),rho,u,ns,rts,ro-ri,sqrt(dPdrho/rho),Gamma(model,rho,u));
-	}
-	/*
-	** Now generate the coordinates of all the particles in each shell as they are on the unit
-	** sphere. This simplifies the later adjusting of the radii of the shells (unit sphere 
-	** coordinates are independent of this.
-	*/
-
-	/*
-	** Phase 3: With the masses and numbers of the particles fixed and the 
-	** as well as their angular positions, we now attempt to use an SPH density
-	** estimate to calculate the mean radial pressure force on the shell 
-	** and converge on the radius of the shell such that it is balanced by
-	** gravity on the shell (analytic).
-	*/
-	if (bCentral) {
-		/*
-		** First adjust the density of the central particle.
-		*/
-	}
-
-	/*
-	** Now output the particles.
-	*/
-	TipsyInitialize(&out,0,NULL);
-
-	for (j=0;j<3;++j) gp.vel[j] = 0.0;
-	gp.phi = 0.0;
-	/*
-	** As a first guess we use max(l1max,l2max) for the softening.
-	*/
-	fprintf(stderr,"l1max: %g l2max: %g epsilon: %g\n",l1max,l2max,MAX(l1max,l2max));
-	gp.hsmooth = MAX(l1max,l2max);  /* is actually eps for gasoline */
-	gp.mass = m;
-	//gp.temp = model->uFixed;   /* Christian's version of gasoline uses thermal energy instead of temperature as input! */
-	nLast = nReached;
-	nReached = 0;
-	if (bCentral) {
-		for (j=0;j<3;++j) gp.pos[j] = 0.0;
-		gp.temp = uLookup(model, 0);
-		// Dont forget to set the material for the central particle
-		gp.metals = model->iMatOrder[0];
-		TipsyAddGas(out,&gp);
-	}
-	for (iShell=0;iShell<nShell;++iShell) {
-		rs = rsShell[iShell];
-		ns = nsShell[iShell];
-		npix = (bIcosa)?(40*ns*(ns-1)+12):(12*ns*ns);
-		nReached += npix;
-		ang1 = 2.0*M_PI*rand()/(RAND_MAX+1.0);
-		ang2 = 2.0*M_PI*rand()/(RAND_MAX+1.0);
-		ang3 = 2.0*M_PI*rand()/(RAND_MAX+1.0);
-		for (ipix = 0;ipix < npix;++ipix) {
-			if (bIcosa) icosaPix2Vec(ctx,ipix,ns,r);
-			else pix2vec_ring(ns,ipix,r);
-			if (bRandomRotate) {
-				y = r[1]*cos(ang1) - r[2]*sin(ang1);
-				r[2] = r[1]*sin(ang1) + r[2]*cos(ang1);
-				
-				x = r[0]*cos(ang2) - r[2]*sin(ang2);
-				r[2] = r[0]*sin(ang2) + r[2]*cos(ang2);
-				r[0] = x;
-
-				r[1] = y*cos(ang3) - r[2]*sin(ang3);
-				r[2] = y*sin(ang3) + r[2]*cos(ang3);
-			}
-
-			for (j=0;j<3;++j) gp.pos[j] = rs*r[j];
-	    
-//			rho = rhoLookup(model,rs);
-			gp.temp = uLookup(model,rs);
-			// Save Material (need to modify this!)
-			gp.metals = MATERIAL;
-			TipsyAddGas(out,&gp);
-		}
-	}
-	fprintf(stderr,"Writing %d particles. Model R:%g Last Shell r:%g\n",nReached,model->R,rsShell[nShell-1]);
-	/* Write all particles to ballic.std */
-	TipsyWriteAll(out,0.0,"ballic.std");
-	TipsyFinish(out);
-			for (j=0;j<3;++j) gp.pos[j] = rs*r[j];
-	    
-//			rho = rhoLookup(model,rs);
-			gp.temp = uLookup(model,rs);
-			// Save Material (need to modify this!)
-			gp.metals = MATERIAL;
-			TipsyAddGas(out,&gp);
-		}
-	}
-	fprintf(stderr,"Writing %d particles. Model R:%g Last Shell r:%g\n",nReached,model->R,rsShell[nShell-1]);
-	/* Write all particles to ballic.std */
-	TipsyWriteAll(out,0.0,"ballic.std");
-	TipsyFinish(out);
-}
-#endif
-
-/*
-** New version of ballic that solves the problem of distributing the particles separately for the core and the mantle.
+**
+** This is a two component version of ballic that solves the problem of distributing the particles separately for the core and the mantle.
 */
 void main(int argc, char **argv) {
     const int bCentral = 1;
