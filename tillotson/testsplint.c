@@ -39,6 +39,9 @@ void main(int argc, char **argv) {
 	TILLMATERIAL *granite;
 	struct lookup *isentrope;
 
+#ifdef TILL_PRESS_NP
+	fprintf(stderr, "TILL_PRESS_NP.\n");
+#endif
 	fprintf(stderr, "Initializing material...\n");
 
 	granite = tillInitMaterial(GRANITE, dKpcUnit, dMsolUnit, nTableRho, nTableV, rhomax, vmax, n);

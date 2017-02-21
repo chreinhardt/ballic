@@ -290,7 +290,9 @@ void modelSolveBC(MODEL *model, double *prho, double *pu, int iLayer1, int iLaye
 
 	assert(prho != NULL);
 	assert(pu != NULL);
-
+	
+	// Make sure that (rho,u) is not below the cold curve (not implemented yet!)
+	
 	rho1 = *prho;
 	u1 = *pu;
 

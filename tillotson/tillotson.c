@@ -75,19 +75,28 @@ TILLMATERIAL *tillInitMaterial(int iMaterial, double dKpcUnit, double dMsolUnit,
 	/* Number of grid points for the look up table */
 	material->nTableRho = nTableRho;
 	material->nTableV = nTableV;
-    /*
-    ** Convert kboltz/mhydrogen to system units, assuming that
-    ** G == 1.
-    */
-    material->dGasConst = material->dKpcUnit*KPCCM*KBOLTZ
-	/MHYDR/GCGS/material->dMsolUnit/MSOLG;
-    /* code energy per unit mass --> erg per g */
-    material->dErgPerGmUnit = GCGS*material->dMsolUnit*MSOLG/(material->dKpcUnit*KPCCM);
-    /* code density --> g per cc */
-    material->dGmPerCcUnit = (material->dMsolUnit*MSOLG)/pow(material->dKpcUnit*KPCCM,3.0);
-    /* code time --> seconds */
-    material->dSecUnit = sqrt(1/(material->dGmPerCcUnit*GCGS));
 
+	if (dKpcUnit <= 0.0 && dMsolUnit <= 0.0)
+	{
+		/* In this case units are not converted, so the code units are cgs. */
+		material->dGasConst = KBOLTZ;
+		material->dErgPerGmUnit = 1.0;
+		material->dGmPerCcUnit = 1.0;
+		material->dSecUnit = 1.0;
+	} else {
+		/*
+		** Convert kboltz/mhydrogen to system units, assuming that
+		** G == 1.
+		*/
+		material->dGasConst = material->dKpcUnit*KPCCM*KBOLTZ
+		/MHYDR/GCGS/material->dMsolUnit/MSOLG;
+		/* code energy per unit mass --> erg per g */
+		material->dErgPerGmUnit = GCGS*material->dMsolUnit*MSOLG/(material->dKpcUnit*KPCCM);
+		/* code density --> g per cc */
+		material->dGmPerCcUnit = (material->dMsolUnit*MSOLG)/pow(material->dKpcUnit*KPCCM,3.0);
+		/* code time --> seconds */
+		material->dSecUnit = sqrt(1/(material->dGmPerCcUnit*GCGS));
+	}
 
 	/* The memory for the lookup table is allocated when tillInitLookup is called. */
 		
@@ -169,6 +178,23 @@ TILLMATERIAL *tillInitMaterial(int iMaterial, double dKpcUnit, double dMsolUnit,
 			material->beta = 5.0;
 			// Have to look up in more details?
 			material->cv = 1.0e7; /* ergs/g K */ 
+			break;
+		case WATER:
+			/*
+			** Material parameters from Woolfson 2007.
+			*/
+			material->a = 0.5;
+			material->b = 0.9;
+			material->u0 = 2.0e10; /* in ergs/g */
+			material->rho0 = 1.00; /* g/cc */
+			material->A = 2.00e11; /* ergs/cc */
+			material->B = 1.00e11; /* ergs/cc */
+			material->us = 4.00e9; /* ergs/g */
+			material->us2 = 2.04e10; /* ergs/g */
+			material->alpha = 5.0;
+			material->beta = 5.0;
+			// Have to look up in more details?
+			material->cv = 4.1814e7; /* ergs/g K */ 
 			break;
 		default:
 			/* Unknown material */
@@ -464,7 +490,11 @@ double tillPressure(TILLMATERIAL *material, double rho, double u)
 	/* Calculate the pressure from the Tillotson EOS for a material */
 	double P = tillPressureSound(material, rho, u, NULL);
 
+#ifdef TILL_PRESS_NP
+	/* Make a pressure cut off, if P < 0. */
 	if (P < 0.0 ) P = 0.0;
+#endif
+
 	return (P);
 }
 

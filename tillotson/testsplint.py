@@ -46,6 +46,7 @@ ylabel('Internal energy')
 #xticks([0,rho0],[r'$0$',r'$\rho_0$'],size='large')
 #yticks([0,us,us2],[r'$0$',r'$u_{IV}$',r'$u_{CV}$'],size='large')
 
+show()
 #savefig('lookup.pdf')
 savefig('testsplint.png')
 

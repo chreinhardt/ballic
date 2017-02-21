@@ -722,6 +722,13 @@ void main(int argc, char **argv) {
     ucore = atof(argv[3]);
     iMat = atoi(argv[4]);
 
+	/* Assure that the parameters make sense. */
+
+    assert(nDesired > 0);
+    assert(mTot > 0.0);
+    assert(ucore > 0.0);
+    assert(iMat >= 0);
+
     model = modelInit(ucore, iMat);
     rhoCenter = modelSolve(model,mTot);
 
