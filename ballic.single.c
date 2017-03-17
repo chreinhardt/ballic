@@ -404,6 +404,22 @@ double dMdr(double r,double rho) {
 const double fact = 1.0;
 
 /*
+ * Calculate the gravitational accelleration due to the enclosed mass M(R).
+ */
+double CalcGrav(double r, double M)
+{
+	assert(r>=0.0);
+	
+	if (r > 0.0)
+	{
+		// Again assuming G=1
+		return(-M/(r*r));
+	} else {
+		return(0.0);
+	}
+}
+
+/*
 ** This function solves the model as an initial value problem with rho_initial = rho and 
 ** M_initial = 0 at r = 0. This function returns the mass when rho == model->tillMat[i]->rho0.
 */
@@ -423,36 +439,35 @@ double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
 		model->r[i] = r;
 		fp = fopen("ballic.model","w");
 		assert(fp != NULL);
-		/* Output in temperature! */
-		fprintf(fp,"%g %g %g %g\n",r,rho,M,u);
+		fprintf(fp,"%g %g %g %g %g\n",r,rho,M,u,CalcGrav(r,M));
 		++i;
 	}
 
     while (rho > fact*model->tillMat->rho0) {
-	/*
-	** Midpoint Runga-Kutta (2nd order).
-	*/
-	k1rho = h*drhodr(model,r,rho,M,u);
-	k1M = h*dMdr(r,rho);
-	k1u = h*dudr(model,r,rho,M,u);
+		/*
+		** Midpoint Runga-Kutta (2nd order).
+		*/
+		k1rho = h*drhodr(model,r,rho,M,u);
+		k1M = h*dMdr(r,rho);
+		k1u = h*dudr(model,r,rho,M,u);
 
-	k2rho = h*drhodr(model,r+0.5*h,rho+0.5*k1rho,M+0.5*k1M,u+0.5*k1u);
-	k2M = h*dMdr(r+0.5*h,rho+0.5*k1rho);
-	k2u = h*dudr(model,r+0.5*h,rho+0.5*k1rho,M+0.5*k1M,u+0.5*k1u);
+		k2rho = h*drhodr(model,r+0.5*h,rho+0.5*k1rho,M+0.5*k1M,u+0.5*k1u);
+		k2M = h*dMdr(r+0.5*h,rho+0.5*k1rho);
+		k2u = h*dudr(model,r+0.5*h,rho+0.5*k1rho,M+0.5*k1M,u+0.5*k1u);
 
-	rho += k2rho;
-	M += k2M;
-	u += k2u;
-	r += h;
+		rho += k2rho;
+		M += k2M;
+		u += k2u;
+		r += h;
 
-	if (bSetModel) {
-	    model->rho[i] = rho;
-	    model->M[i] = M;
-	    model->u[i] = u;
-	    model->r[i] = r;
-	    fprintf(fp,"%g %g %g %g\n",r,rho,M,u);
-	    ++i;
-	    }
+		if (bSetModel) {
+			model->rho[i] = rho;
+			model->M[i] = M;
+			model->u[i] = u;
+			model->r[i] = r;
+			fprintf(fp,"%g %g %g %g %g\n",r,rho,M,u,CalcGrav(r,M));
+			++i;
+		}
 	}
     /*
     ** Now do a linear interpolation to rho == fact*rho0.
@@ -464,19 +479,20 @@ double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
     rho += k2rho*x;
 	u += k2u*x;
 
-    if (bSetModel) {
-	--i;
-	model->M[i] = M;
-	model->r[i] = r;
-	model->rho[i] = rho;
-	model->u[i] = u;
+	if (bSetModel) {
+		--i;
+		model->M[i] = M;
+		model->r[i] = r;
+		model->rho[i] = rho;
+		model->u[i] = u;
 
-	fprintf(fp,"%g %g %g %g\n",r,rho,M,u);
-    fclose(fp);
-	++i;
-	model->nTable = i;
-	model->dr = h;
+		fprintf(fp,"%g %g %g %g %g\n",r,rho,M,u,CalcGrav(r,M));
+		fclose(fp);
+		++i;
+		model->nTable = i;
+		model->dr = h;
 	}
+
     *pR = r;
     return(M);
     }

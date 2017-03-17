@@ -1,11 +1,11 @@
 
-objects = ballic.o ballic.single.o ballic.multi.o
+objects = ballic.o ballic.single.o ballic.multi.o modelsolve.o
 tipsy_objects = tipsy.o 
 till_objects = tillotson/tillotson.o tillotson/tillinitlookup.o tillotson/tillsplint.o tillotson/interpol/coeff.o tillotson/interpol/interpol.o tillotson/interpol/brent.o tillotson/nr/nrcubicspline.o tillotson/nr/nrutil.o
 fortran_objects = icosahedron.o
 FC := gfortran
 
-exe = ballic ballic.single ballic.multi
+exe = ballic ballic.single ballic.multi modelsolve
 
 CFLAGS ?= -O3 -march=native
 FFLAGS ?= $(CFLAGS)
@@ -35,6 +35,9 @@ multi: ballic.multi.o $(tipsy_objects) $(till_objects) $(fortran_objects)
 multi.atm: ballic.multi.atm.o $(tipsy_objects) $(till_objects) $(fortran_objects)
 	cc -o ballic.multi.atm ballic.multi.atm.o $(tipsy_objects) $(till_objects) $(fortran_objects) -lm
 
+# Calculates equilibrium models for a given material and different initial densities and internal energies.
+modelsolve: modelsolve.o $(till_objects)
+	cc -o modelsolve modelsolve.o $(till_objects) -lm
 clean:
 	rm -f $(exe) $(objects) 
 

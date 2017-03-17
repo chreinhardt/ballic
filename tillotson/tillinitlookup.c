@@ -295,7 +295,6 @@ int tillIsInTable(TILLMATERIAL *material,double rho,double u)
 		/* We are in the unphysical region below the cold curve */
 //		fprintf(stderr,"tillIsInTable: value (%g,%g) below the cold curve!\n",rho,u);
 		printf("tillIsInTable: value (%g,%g) below the cold curve (iMat=%i)!\n",rho,u,material->iMaterial);
-//		assert(0);
 		return(iRet);
 	}
 	iRet = 0;
@@ -308,14 +307,14 @@ int tillIsBelowColdCurve(TILLMATERIAL *material,double rho,double u)
 	** This function checks if a given (rho,u) is in an unphysical
 	** state below the cold curve.
 	**
-	** Returns 0 if (rho,u) is below the cold curve and 1 if not.
+	** Returns 1 if (rho,u) is below the cold curve and 0 if not.
 	*/
-	int iRet = 1;
+	int iRet = 0;
 
 	if (u < tillColdULookup(material, rho))
 	{
 //		printf("tillIsBelowColdCurve: value (%g,%g) below the cold curve (iMat=%i)!\n",rho,u,material->iMaterial);
-		iRet = 0;
+		iRet = 1;
 	}
 	return(iRet);
 }
