@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <assert.h>
-#include "tipsy.h"
+#include "tipsydefs/tipsy.h"
 
 #define max(A,B) ((A) > (B) ? (A) : (B))
 #define min(A,B) ((A) > (B) ? (B) : (A))

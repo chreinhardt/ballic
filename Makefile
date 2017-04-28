@@ -1,14 +1,28 @@
-CC = g$(CC)
-objects = ballic.o ballic.single.o ballic.multi.o modelsolve.o
-tipsy_objects = tipsy.o 
-till_objects = tillotson/tillotson.o tillotson/tillinitlookup.o tillotson/tillsplint.o tillotson/interpol/coeff.o tillotson/interpol/interpol.o tillotson/interpol/brent.o tillotson/nr/nrcubicspline.o tillotson/nr/nrutil.o
-fortran_objects = icosahedron.o
-FC := gfortran
+#########################
+#                       #
+#   Ballic Makefile.    #
+#                       #
+#########################
 
-exe = ballic ballic.single ballic.multi modelsolve
+CC              = gcc
+FC              = gfortran
 
-CFLAGS ?= -O3 -march=native
-FFLAGS ?= $(CFLAGS)
+OBJECTS         = ballic.o ballic.single.o ballic.multi.o modelsolve.o
+TIPSY_OBJECTS   = tipsy.o 
+TILL_OBJECTS    = tillotson/tillotson.o tillotson/tillinitlookup.o tillotson/tillsplint.o tillotson/interpol/coeff.o tillotson/interpol/interpol.o tillotson/interpol/brent.o tillotson/nr/nrcubicspline.o tillotson/nr/nrutil.o
+FORTRAN_OBJECTS = icosahedron.o
+INC_TIPSYDEFS   = -I./tipsydefs
+TIPSYSRC        = ./tipsydefs/tipsy.c
+BALLIC          = ballic
+
+EXE             = ballic ballic.single ballic.multi modelsolve
+
+CFLAGS          ?= -O3 -march=native
+FFLAGS          ?= $(CFLAGS)
+
+# NOTE:
+# Call --> make ballic.single CFLAGS+=-DDOUBLE_TIPSY <-- from command line for double precision tipsy files
+# Before switching precision you have to invoke a make cleanall to clean the tipsy.o file
 
 default:
 	@echo "Please specify, which tool to make (e.g., ballic, single, multi)."
@@ -18,28 +32,38 @@ all:
 
 # Standard version of ballic that reads an equilibrium model from a file and generates an particle distribution,
 # that matches the desired density profile. Currently not reliably working for multi component models.
-ballic: ballic.o $(tipsy_objects) $(fortran_objects)
-	$(CC) -o ballic ballic.o $(tipsy_objects) $(fortran_objects) -lm
+
+ballic: ballic.o $(TIPSY_OBJECTS) $(FORTRAN_OBJECTS)
+	$(CC) $(CFLAGS) $^ -o $@ -lm
 
 # Single component version of ballic. It first calculates an equilibrium model for a given material and then
 # generates a particle representation.
-single: ballic.single.o $(tipsy_objects) $(till_objects) $(fortran_objects)
-	$(CC) -o ballic.single ballic.single.o $(tipsy_objects) $(till_objects) $(fortran_objects) -lm
+
+single: ballic.single.o $(TIPSY_OBJECTS) $(TILL_OBJECTS) $(FORTRAN_OBJECTS)
+	$(CC) $(CFLAGS) $^ -o $(BALLIC).$@ -lm
 
 # Two component version of ballic. It first calculates an equilibrium model for a given material and then
 # generates a particle representation.
-multi: ballic.multi.o $(tipsy_objects) $(till_objects) $(fortran_objects)
-	$(CC) -o ballic.multi ballic.multi.o $(tipsy_objects) $(till_objects) $(fortran_objects) -lm
+
+multi: ballic.multi.o $(TIPSY_OBJECTS) $(TILL_OBJECTS) $(FORTRAN_OBJECTS)
+	$(CC) $(CFLAGS) $^ -o $(BALLIC).$@ -lm
 
 # A two component model, that has a low density atmosphere of the mantle material
-multi.atm: ballic.multi.atm.o $(tipsy_objects) $(till_objects) $(fortran_objects)
-	$(CC) -o ballic.multi.atm ballic.multi.atm.o $(tipsy_objects) $(till_objects) $(fortran_objects) -lm
+
+multi.atm: ballic.multi.atm.o $(TIPSY_OBJECTS) $(TILL_OBJECTS) $(FORTRAN_OBJECTS)
+	$(CC) $(CFLAGS) $^ -o $(BALLIC).$@ -lm
 
 # Calculates equilibrium models for a given material and different initial densities and internal energies.
-modelsolve: modelsolve.o $(till_objects)
-	$(CC) -o modelsolve modelsolve.o $(till_objects) -lm
+
+modelsolve: modelsolve.o $(TILL_OBJECTS)
+	$(CC) $(CFLAGS) $^ -o $@ -lm
+
+tipsy.o:
+	$(CC) $(CFLAGS) $(INC_TIPSYDEFS) $^ -o $@ -c $(TIPSYSRC)
+
+
 clean:
-	rm -f $(exe) $(objects) 
+	rm -f $(EXE) $(OBJECTS) 
 
 cleanall:
-	rm -f $(exe) $(objects) $(tipsy_objects) $(till_objects) $(fortran_objects)
+	rm -f $(EXE) $(OBJECTS) $(TIPSY_OBJECTS) $(TILL_OBJECTS) $(FORTRAN_OBJECTS)

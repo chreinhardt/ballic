@@ -4,7 +4,7 @@
 #ifndef BALLIC_HINCLUDED
 #define BALLIC_HINCLUDED
 
-#include "tipsy.h"
+#include "tipsydefs/tipsy.h"
 #include "tillotson/tillotson.h"
 
 #define max(A,B) ((A) > (B) ? (A) : (B))

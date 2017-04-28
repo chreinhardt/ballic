@@ -4,7 +4,7 @@
 #include <malloc.h>
 #include <assert.h>
 #include "ballic.h"
-#include "tipsy.h"
+#include "tipsy/tipsy.h"
 #include "tillotson/tillotson.h"
 
 /* Functions for Icosahedron. */
