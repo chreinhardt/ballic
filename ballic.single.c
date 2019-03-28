@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <assert.h>
-#include "tipsy.h"
+#include "tipsydefs/tipsy.h"
 #include "tillotson/tillotson.h"
 //#include "ballic.h"
 
