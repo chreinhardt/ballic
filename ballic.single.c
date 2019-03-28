@@ -1,8 +1,10 @@
 /*
- ** Copyright (c) 2014-2016 Joachim Stadel and Christian Reinhardt.
- **
- ** ballic provides a low noise particle representation of equilibrium
- ** models.
+ * Copyright (c) 2014-2019 Joachim Stadel and Christian Reinhardt.
+ *
+ * ballic provides a low noise particle representation of equilibrium models.
+ *
+ * The single version builds a 1D equilibrium model for a given material and boundary conditions and
+ * then creates the particle representation which is stored in ballic.std.
  */
 #include <math.h>
 #include <stdio.h>
@@ -11,7 +13,6 @@
 #include <assert.h>
 #include "tipsydefs/tipsy.h"
 #include "tillotson/tillotson.h"
-//#include "ballic.h"
 
 #define max(A,B) ((A) > (B) ? (A) : (B))
 #define min(A,B) ((A) > (B) ? (B) : (A))
@@ -230,31 +231,29 @@ MODEL *modelInit(double ucore, int iMat) {
     model->dMsolUnit = 4.80438e-08;
 	model->tillMat = malloc(sizeof(TILLMATERIAL));
 
+    /* Check if the Tillotson library has the right version. */
+    if (TILL_VERSION_MAJOR != 3) {
+        fprintf(stderr, "modelInit: Tillotson library has the wrong version (%s)\n", TILL_VERSION_TEXT);
+        exit(1);
+    }
+
+    fprintf(stderr, "Tillotson EOS library version: %s\n", TILL_VERSION_TEXT);
+    fprintf(stderr, "\n");
+     
 	/*
-	** Initialize one material.
-	** i=0: Granite
-	** i=1: Iron
-	** i=2: Basalt
-	** i=3: Ice
-	*/
-	model->tillMat = tillInitMaterial(iMat, model->dKpcUnit, model->dMsolUnit, 100, 100, 50.0, 50.0, 1);
+	 * Initialize one material:
+     *
+	 * i=0: Ideal gas
+	 * i=1: Granite
+	 * i=2: Iron
+	 * i=3: Basalt
+	 * i=4: Ice
+     *
+     * All materials are defined in tillotson.h.
+	 */
+	model->tillMat = tillInitMaterial(iMat, model->dKpcUnit, model->dMsolUnit);
 
-	// Debug information
-
-	fprintf(stderr,"\n");	
-	fprintf(stderr,"Material: %i\n",iMat);	
-	fprintf(stderr,"a: %g\n", model->tillMat->a);
-	fprintf(stderr,"b: %g\n", model->tillMat->b);
-	fprintf(stderr,"A: %g\n", model->tillMat->A);
-	fprintf(stderr,"B: %g\n", model->tillMat->B);
-	fprintf(stderr,"rho0: %g\n", model->tillMat->rho0);
-	fprintf(stderr,"u0: %g\n", model->tillMat->u0);
-	fprintf(stderr,"us: %g\n", model->tillMat->us);
-	fprintf(stderr,"us2: %g\n", model->tillMat->us2);
-	fprintf(stderr,"alpha: %g\n", model->tillMat->alpha);
-	fprintf(stderr,"beta: %g\n", model->tillMat->beta);
-	fprintf(stderr,"cv: %g\n", model->tillMat->cv);
-	fprintf(stderr,"\n");
+    tillPrintMat(model->tillMat);
 
     /* model->uFixed = uFixed/model->dErgPerGmUnit; */
     model->uc = ucore;
