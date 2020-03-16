@@ -9,7 +9,6 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <malloc.h>
 #include <assert.h>
 #include "tipsydefs/tipsy.h"
 #include "tillotson/tillotson.h"
