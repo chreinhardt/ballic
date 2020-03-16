@@ -275,33 +275,10 @@ MODEL *modelInit(double ucore, int iMat) {
 double drhodr(MODEL *model,double r,double rho,double M,double u);
 double dudr(MODEL *model,double r,double rho,double M,double u);
 
-/*
-** dudrho depends on the internal energy profile that we choose!
-*/
-double dudrho(MODEL *model,double rho,double u) {
-#ifdef BALLIC_U_POLYTROPIC
-	/*
-	** We assume a polytropic internal energy profile!
-	*/
-	// Not implemented yet
-	assert(0);
-	return(Pressure(model,rho,u)/(rho*rho));
-#else
-#ifdef BALLIC_U_ISENTROPIC
-	/*
-	** We assume an isentropic internal energy profile!
-	*/
-	return(tillPressure(model->tillMat,rho,u)/(rho*rho));
-#else
-  	fprintf(stderr,"No thermal profile defined when compiled!\n");
-	assert(0);
-#endif
-#endif
-}
 
 /*
-** Calculate dudrho to solve for the equilibrium model.
-*/
+ * Calculate drhodr to solve for the equilibrium model.
+ */
 double drhodr(MODEL *model,double r,double rho,double M,double u) {
     double dPdrho,dPdu;
 
@@ -309,27 +286,28 @@ double drhodr(MODEL *model,double r,double rho,double M,double u) {
 	dPdu = tilldPdu(model->tillMat, rho, u);; // dP/du at rho=const.
 
 	/*
-	** drho/dr = -G*M*rho/(dPdrho+dPdu*dudrho)
-	*/
+	 * drho/dr = -G*M*rho/(dPdrho+dPdu*dudrho)
+	 */
 	assert(r >= 0.0);
 	if (r > 0.0) {
-	// We assume G=1
-		return(-M*rho/(r*r*(dPdrho + dPdu*dudrho(model,rho,u))));
+	    // We assume G=1
+		return(-M*rho/(r*r*(dPdrho + dPdu*tilldudrho(model->tillMat,rho,u))));
 	}
 	else {
 		return(0.0);
 	}
 }
 
-
+/*
+ * We assume that the thermal profile is isentropic.
+ */
 double dudr(MODEL *model,double r,double rho,double M,double u) {
-	return(dudrho(model,rho,u)*drhodr(model,r,rho,M,u));
-//	return(0.0);
+	return(tilldudrho(model->tillMat, rho, u)*drhodr(model, r, rho, M, u));
 }
 
 /*
-** This derivative is independent of the model and only involves geometry.
-*/
+ * This derivative is independent of the model and only involves geometry.
+ */
 double dMdr(double r,double rho) {
 	assert(r >= 0.0);
 	return(4.0*M_PI*r*r*rho);
@@ -354,9 +332,9 @@ double CalcGrav(double r, double M)
 }
 
 /*
-** This function solves the model as an initial value problem with rho_initial = rho and 
-** M_initial = 0 at r = 0. This function returns the mass when rho == model->tillMat[i]->rho0.
-*/
+ * This function solves the model as an initial value problem with rho_initial = rho and 
+ * M_initial = 0 at r = 0. This function returns the mass when rho == model->tillMat[i]->rho0.
+ */
 double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
     FILE *fp;
     double M = 0.0;
@@ -431,8 +409,10 @@ double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
     return(M);
     }
 
-
-double modelSolve(MODEL *model,double M) {
+/*
+ * Solve the 1D equilibrium model for the desired mass.
+ */
+double modelSolve(MODEL *model, double M) {
     const int nStepsMax = 10000;
     int bSetModel;
     double rmax;
@@ -440,8 +420,8 @@ double modelSolve(MODEL *model,double M) {
     double a,Ma,b,Mb,c,Mc;
 
     /*
-    ** First estimate the maximum possible radius.
-    */
+     * First estimate the maximum possible radius.
+     */
     R = cbrt(3.0*M/(4.0*M_PI*model->tillMat->rho0));
     dr = R/nStepsMax;
     a = 1.01*model->tillMat->rho0; /* starts with 1% larger central density */
@@ -465,8 +445,8 @@ double modelSolve(MODEL *model,double M) {
 	fprintf(stderr,"Root bracketed.\n");
 
     /*
-    ** Root bracketed by (a,b).
-    */
+     * Root bracketed by (a,b).
+     */
     while (Mb-Ma > 1e-10*Mc) {
 	c = 0.5*(a + b);
         Mc = midPtRK(model,bSetModel=0,c,dr,&R);	
@@ -481,8 +461,8 @@ double modelSolve(MODEL *model,double M) {
 //	fprintf(stderr,"c:%.10g Mc:%.10g R:%.10g\n",c/model->tillMat[0]->rho0,Mc,R);
 	}
     /*
-    ** Solve it once more setting up the lookup table.
-    */
+     * Solve it once more setting up the lookup table.
+     */
     fprintf(stderr,"rho_core: %g cv: %g uc: %g (in system units)\n",c,model->tillMat->cv,model->uc);
     Mc = midPtRK(model,bSetModel=1,c,dr,&R);
     model->R = R;
