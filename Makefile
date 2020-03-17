@@ -9,7 +9,7 @@ FC              = gfortran
 
 OBJECTS         = ballic.o ballic.single.o ballic.multi.o modelsolve.o
 TIPSY_OBJECTS   = tipsy.o 
-TILL_OBJECTS    = tillotson/tillotson.o tillotson/tillinitlookup.o tillotson/tillsplint.o tillotson/interpol/brent.o
+TILL_OBJECTS    = ../tillotson/tillotson.o ../tillotson/tillinitlookup.o ../tillotson/tillsplint.o ../tillotson/interpol/brent.o
 FORTRAN_OBJECTS = icosahedron.o
 INC_TIPSYDEFS   = -I./tipsydefs
 TIPSYSRC        = ./tipsydefs/tipsy.c

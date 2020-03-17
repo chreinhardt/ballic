@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "tipsydefs/tipsy.h"
-#include "tillotson/tillotson.h"
+#include "../tillotson/tillotson.h"
 
 #define max(A,B) ((A) > (B) ? (A) : (B))
 #define min(A,B) ((A) > (B) ? (B) : (A))
