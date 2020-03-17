@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "tipsydefs/tipsy.h"
-#include "../tillotson/tillotson.h"
+#include "../EOSlib/EOSlib.h"
 
 #define max(A,B) ((A) > (B) ? (A) : (B))
 #define min(A,B) ((A) > (B) ? (B) : (A))
@@ -197,8 +197,9 @@ double Packed49[49][3] = {
 
 
 typedef struct model_ctx {
-	/* Material coefficients from the Tillotson EOS. */
-	TILLMATERIAL *tillMat;
+	/* Material structure for the EOSlib material. */
+	EOSMATERIAL *eosMat;
+
 	/*
 	** Some unit conversion factors.
 	*/
@@ -228,33 +229,20 @@ MODEL *modelInit(double ucore, int iMat) {
 
     model->dKpcUnit = 2.06701e-13;
     model->dMsolUnit = 4.80438e-08;
-	model->tillMat = malloc(sizeof(TILLMATERIAL));
 
-    /* Check if the Tillotson library has the right version. */
-    if (TILL_VERSION_MAJOR != 3) {
-        fprintf(stderr, "modelInit: Tillotson library has the wrong version (%s)\n", TILL_VERSION_TEXT);
+    /* Check if the EOS library has the right version. */
+    if (EOS_VERSION_MAJOR != 1) {
+        fprintf(stderr, "modelInit: EOS library has the wrong version (%s)\n", EOS_VERSION_TEXT);
         exit(1);
     }
 
-    fprintf(stderr, "Tillotson EOS library version: %s\n", TILL_VERSION_TEXT);
+    fprintf(stderr, "EOS library version: %s\n", EOS_VERSION_TEXT);
     fprintf(stderr, "\n");
-     
-	/*
-	 * Initialize one material:
-     *
-	 * i=0: Ideal gas
-	 * i=1: Granite
-	 * i=2: Iron
-	 * i=3: Basalt
-	 * i=4: Ice
-     *
-     * All materials are defined in tillotson.h.
-	 */
-	model->tillMat = tillInitMaterial(iMat, model->dKpcUnit, model->dMsolUnit);
 
-    tillPrintMat(model->tillMat);
+	model->eosMat = EOSinitMaterial(iMat, model->dKpcUnit, model->dMsolUnit, NULL);
 
-    /* model->uFixed = uFixed/model->dErgPerGmUnit; */
+    //tillPrintMat(model->tillMat);
+
     model->uc = ucore;
 
     model->nTableMax = 10000; 
@@ -282,8 +270,8 @@ double dudr(MODEL *model,double r,double rho,double M,double u);
 double drhodr(MODEL *model,double r,double rho,double M,double u) {
     double dPdrho,dPdu;
 
-	dPdrho=tilldPdrho(model->tillMat, rho, u); // dP/drho at u=const.
-	dPdu = tilldPdu(model->tillMat, rho, u);; // dP/du at rho=const.
+	dPdrho=EOSdPdRho(model->eosMat, rho, u); // dP/drho at u=const.
+	dPdu = EOSdPdU(model->eosMat, rho, u);; // dP/du at rho=const.
 
 	/*
 	 * drho/dr = -G*M*rho/(dPdrho+dPdu*dudrho)
@@ -291,7 +279,7 @@ double drhodr(MODEL *model,double r,double rho,double M,double u) {
 	assert(r >= 0.0);
 	if (r > 0.0) {
 	    // We assume G=1
-		return(-M*rho/(r*r*(dPdrho + dPdu*tilldudrho(model->tillMat,rho,u))));
+		return(-M*rho/(r*r*(dPdrho + dPdu*EOSdUdRho(model->eosMat,rho,u))));
 	}
 	else {
 		return(0.0);
@@ -302,7 +290,7 @@ double drhodr(MODEL *model,double r,double rho,double M,double u) {
  * We assume that the thermal profile is isentropic.
  */
 double dudr(MODEL *model,double r,double rho,double M,double u) {
-	return(tilldudrho(model->tillMat, rho, u)*drhodr(model, r, rho, M, u));
+	return(EOSdUdRho(model->eosMat, rho, u)*drhodr(model, r, rho, M, u));
 }
 
 /*
@@ -333,7 +321,7 @@ double CalcGrav(double r, double M)
 
 /*
  * This function solves the model as an initial value problem with rho_initial = rho and 
- * M_initial = 0 at r = 0. This function returns the mass when rho == model->tillMat[i]->rho0.
+ * M_initial = 0 at r = 0. This function returns the mass when rho == model->eosMat[i]->rho0.
  */
 double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
     FILE *fp;
@@ -355,7 +343,7 @@ double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
 		++i;
 	}
 
-    while (rho > fact*model->tillMat->rho0) {
+    while (rho > fact*model->eosMat->rho0) {
 		/*
 		** Midpoint Runga-Kutta (2nd order).
 		*/
@@ -384,7 +372,7 @@ double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
     /*
     ** Now do a linear interpolation to rho == fact*rho0.
     */
-    x = (fact*model->tillMat->rho0 - rho)/k2rho;
+    x = (fact*model->eosMat->rho0 - rho)/k2rho;
     assert(x <= 0.0);
     r += h*x;
     M += k2M*x;
@@ -422,9 +410,9 @@ double modelSolve(MODEL *model, double M) {
     /*
      * First estimate the maximum possible radius.
      */
-    R = cbrt(3.0*M/(4.0*M_PI*model->tillMat->rho0));
+    R = cbrt(3.0*M/(4.0*M_PI*model->eosMat->rho0));
     dr = R/nStepsMax;
-    a = 1.01*model->tillMat->rho0; /* starts with 1% larger central density */
+    a = 1.01*model->eosMat->rho0; /* starts with 1% larger central density */
     Ma = midPtRK(model,bSetModel=0,a,dr,&R);
     fprintf(stderr,"first Ma:%g R:%g\n",Ma,R);
     b = a;
@@ -432,7 +420,7 @@ double modelSolve(MODEL *model, double M) {
     while (Ma > M) {
 		b = a;
 		Mb = Ma;
-		a = 0.5*(model->tillMat->rho0 + a);
+		a = 0.5*(model->eosMat->rho0 + a);
 		Ma = midPtRK(model,bSetModel=0,a,dr,&R);
 	}
     while (Mb < M) {
@@ -447,7 +435,7 @@ double modelSolve(MODEL *model, double M) {
     /*
      * Root bracketed by (a,b).
      */
-    while (Mb-Ma > 1e-10*Mc) {
+    while (Mb-Ma > 1e-6*Mc) {
 	c = 0.5*(a + b);
         Mc = midPtRK(model,bSetModel=0,c,dr,&R);	
 	if (Mc < M) {
@@ -458,12 +446,12 @@ double modelSolve(MODEL *model, double M) {
 	    b = c;
 	    Mb = Mc;
 	    }
-//	fprintf(stderr,"c:%.10g Mc:%.10g R:%.10g\n",c/model->tillMat[0]->rho0,Mc,R);
+//	fprintf(stderr,"c:%.10g Mc:%.10g R:%.10g\n",c/model->eosMat[0]->rho0,Mc,R);
 	}
     /*
      * Solve it once more setting up the lookup table.
      */
-    fprintf(stderr,"rho_core: %g cv: %g uc: %g (in system units)\n",c,model->tillMat->cv,model->uc);
+    //fprintf(stderr,"rho_core: %g cv: %g uc: %g (in system units)\n",c,model->eosMat->cv,model->uc);
     Mc = midPtRK(model,bSetModel=1,c,dr,&R);
     model->R = R;
     return c;
@@ -846,7 +834,7 @@ void main(int argc, char **argv) {
 
     u = uLookup(model,rs); /* We also have to look up u from a table */
 
-	eta = rho/model->tillMat->rho0;
+	eta = rho/model->eosMat->rho0;
 	    /* This was the old code using a constant internal energy uFixed.
 	    w0 = model->uFixed/(model->par.u0*eta*eta) + 1.0;
 		dPdrho = (model->par.a + (model->par.b/w0)*(3 - 2/w0))*model->uFixed + 
@@ -854,9 +842,7 @@ void main(int argc, char **argv) {
 
 		fprintf(stderr,"iShell:%d r:%g M:%g rho:%g ns:%d radial/tangential:%g dr:%g <? Jeans:%g Gamma:%g\n",iShell,rs,MLookup(model,rs),rho,ns,rts,ro-ri,sqrt(dPdrho/rho),Gamma(model,rho,model->uFixed));
         */	
-    	w0 = u/(model->tillMat->u0*eta*eta) + 1.0;
-        dPdrho = (model->tillMat->a + (model->tillMat->b/w0)*(3 - 2/w0))*u + 
-        (model->tillMat->A + 2*model->tillMat->B*(eta - 1))/model->tillMat->rho0;
+
 
 //        fprintf(stderr,"iShell:%d r:%g M:%g rho:%g u:%g ns:%d radial/tangential:%g dr:%g <? Jeans:%g Gamma:%g\n",iShell,rs,MLookup(model,rs),rho,u,ns,rts,ro-ri,sqrt(dPdrho/rho),Gamma(model,rho,u));
         }

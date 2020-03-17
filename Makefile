@@ -9,7 +9,8 @@ FC              = gfortran
 
 OBJECTS         = ballic.o ballic.single.o ballic.multi.o modelsolve.o
 TIPSY_OBJECTS   = tipsy.o 
-TILL_OBJECTS    = ../tillotson/tillotson.o ../tillotson/tillinitlookup.o ../tillotson/tillsplint.o ../tillotson/interpol/brent.o
+#TILL_OBJECTS    = ../tillotson/tillotson.o ../tillotson/tillinitlookup.o ../tillotson/tillsplint.o ../tillotson/interpol/brent.o
+EOS_OBJECTS     = ../EOSlib/EOSlib.o ../tillotson/tillotson.o ../tillotson/tillinitlookup.o ../tillotson/tillsplint.o ../tillotson/interpol/brent.o ../ANEOSmaterial/ANEOSmaterial.o
 FORTRAN_OBJECTS = icosahedron.o
 INC_TIPSYDEFS   = -I./tipsydefs
 TIPSYSRC        = ./tipsydefs/tipsy.c
@@ -43,7 +44,7 @@ ballic: ballic.o $(TIPSY_OBJECTS) $(FORTRAN_OBJECTS)
 # Single component version of ballic. It first calculates an equilibrium model for a given material and then
 # generates a particle representation.
 
-single: ballic.single.o $(TIPSY_OBJECTS) $(TILL_OBJECTS) $(FORTRAN_OBJECTS)
+single: ballic.single.o $(TIPSY_OBJECTS) $(EOS_OBJECTS) $(FORTRAN_OBJECTS)
 	$(CC) $(CFLAGS) $^ -o $(BALLIC).$@ $(LIBS)
 
 # Two component version of ballic. It first calculates an equilibrium model for a given material and then
