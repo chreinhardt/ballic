@@ -420,7 +420,7 @@ double modelSolve(MODEL *model, double M) {
     while (Ma > M) {
 		b = a;
 		Mb = Ma;
-		a = 0.9*(model->eosMat->rho0 + a);
+		a = 0.5*(model->eosMat->rho0 + a);
 		Ma = midPtRK(model,bSetModel=0,a,dr,&R);
 	}
     while (Mb < M) {
