@@ -420,11 +420,11 @@ double modelSolve(MODEL *model, double M) {
     while (Ma > M) {
 		b = a;
 		Mb = Ma;
-		a = 0.5*(model->eosMat->rho0 + a);
+		a = 0.9*(model->eosMat->rho0 + a);
 		Ma = midPtRK(model,bSetModel=0,a,dr,&R);
 	}
     while (Mb < M) {
-		b = 2.0*b;
+		b = 1.01*b;
 	   	Mb = midPtRK(model,bSetModel=0,b,dr,&R);	
 		fprintf(stderr,"first Mb:%g R:%g\n",Mb,R);
 	}
@@ -436,8 +436,9 @@ double modelSolve(MODEL *model, double M) {
      * Root bracketed by (a,b).
      */
     while (Mb-Ma > 1e-6*Mc) {
-	c = 0.5*(a + b);
+		c = 0.5*(a + b);
         Mc = midPtRK(model,bSetModel=0,c,dr,&R);	
+		printf("Mc: %.15e\n", Mc);
 	if (Mc < M) {
 	    a = c;
 	    Ma = Mc;
