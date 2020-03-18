@@ -415,7 +415,7 @@ double modelSolve(MODEL *model, double M) {
     a = 1.01*model->eosMat->rho0; /* starts with 1% larger central density */
     Ma = midPtRK(model,bSetModel=0,a,dr,&R);
     fprintf(stderr,"first Ma:%g R:%g\n",Ma,R);
-    b = a;
+    b = 1.6*a;
     Mb = 0.5*M;
     while (Ma > M) {
 		b = a;
@@ -424,7 +424,7 @@ double modelSolve(MODEL *model, double M) {
 		Ma = midPtRK(model,bSetModel=0,a,dr,&R);
 	}
     while (Mb < M) {
-		b = 1.01*b;
+		b = 1.001*b;
 	   	Mb = midPtRK(model,bSetModel=0,b,dr,&R);	
 		fprintf(stderr,"first Mb:%g R:%g\n",Mb,R);
 	}
