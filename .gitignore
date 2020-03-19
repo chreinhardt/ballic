@@ -198,3 +198,7 @@ tags
 
 
 # End of https://www.gitignore.io/api/c,vim,text,emacs,images
+
+# ballic and EOSlib files
+*.in
+*.std
