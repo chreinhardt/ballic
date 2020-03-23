@@ -416,7 +416,7 @@ double modelSolve(MODEL *model, double M) {
     Ma = midPtRK(model,bSetModel=0,a,dr,&R);
     fprintf(stderr,"first Ma:%g R:%g\n",Ma,R);
 
-	b = 0.999*EOSRhoofUT(model->eosMat, model->uc,1e-4);
+	b = 0.98*EOSRhoofUT(model->eosMat, model->uc,1e-4);
 	if (b<a)
 	{
 		b = 1.6*a;
