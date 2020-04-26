@@ -16,6 +16,11 @@
 #define max(A,B) ((A) > (B) ? (A) : (B))
 #define min(A,B) ((A) > (B) ? (B) : (A))
 
+/* M_PI is not defined in C99. */
+#ifndef M_PI
+#define M_PI (3.14159265358979323846)
+#endif
+
 // Isentropic thermal profile
 #define BALLIC_U_ISENTROPIC
 

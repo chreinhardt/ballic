@@ -22,7 +22,7 @@ EXE             = ballic ballic.single ballic.multi modelsolve
 GSL_LIB          = -lgsl -lgslcblas
 LIBS            ?= -lm $(GSL_LIB)
 
-CFLAGS          ?= -O3 -march=native
+CFLAGS          ?= -O3 -march=native -Wall -std=c99
 FFLAGS          ?= $(CFLAGS)
 
 # NOTE:
