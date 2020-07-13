@@ -344,7 +344,9 @@ double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
 		model->r[i] = r;
 		fp = fopen("ballic.model","w");
 		assert(fp != NULL);
-		fprintf(fp,"%g %g %g %g %g\n",r,rho,M,u,CalcGrav(r,M));
+        /* Print a header. */
+		fprintf(fp,"#             R            rho              M              u              P              T              g\n", r, rho, M, u, EOSPofRhoU(model->eosMat, rho, u), EOSTofRhoU(model->eosMat, rho, u), CalcGrav(r,M));
+		fprintf(fp,"%15.7E%15.7E%15.7E%15.7E%15.7E%15.7E%15.7E\n", r, rho, M, u, EOSPofRhoU(model->eosMat, rho, u), EOSTofRhoU(model->eosMat, rho, u), CalcGrav(r,M));
 		++i;
 	}
 
@@ -370,7 +372,7 @@ double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
 			model->M[i] = M;
 			model->u[i] = u;
 			model->r[i] = r;
-			fprintf(fp,"%g %g %g %g %g\n",r,rho,M,u,CalcGrav(r,M));
+            fprintf(fp,"%15.7E%15.7E%15.7E%15.7E%15.7E%15.7E%15.7E\n", r, rho, M, u, EOSPofRhoU(model->eosMat, rho, u), EOSTofRhoU(model->eosMat, rho, u), CalcGrav(r,M));
 			++i;
 		}
 	}
@@ -391,7 +393,7 @@ double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
 		model->rho[i] = rho;
 		model->u[i] = u;
 
-		fprintf(fp,"%g %g %g %g %g\n",r,rho,M,u,CalcGrav(r,M));
+        fprintf(fp,"%15.7E%15.7E%15.7E%15.7E%15.7E%15.7E%15.7E\n", r, rho, M, u, EOSPofRhoU(model->eosMat, rho, u), EOSTofRhoU(model->eosMat, rho, u), CalcGrav(r,M));
 		fclose(fp);
 		++i;
 		model->nTable = i;
