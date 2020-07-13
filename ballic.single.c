@@ -446,7 +446,7 @@ double modelSolve(MODEL *model, double M) {
     /*
      * Root bracketed by (a,b).
      */
-    while (Mb-Ma > 1e-6*Mc) {
+    while (Mb-Ma > 1e-3*Mc) {
 		c = 0.5*(a + b);
         Mc = midPtRK(model,bSetModel=0,c,dr,&R);	
 		printf("Mc: %.15e\n", Mc);
