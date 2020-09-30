@@ -344,6 +344,10 @@ double midPtRK(MODEL *model,int bSetModel,double rho,double h,double *pR) {
 		model->r[i] = r;
 		fp = fopen("ballic.model","w");
 		assert(fp != NULL);
+
+        /* Print material information. */
+        EOSPrintMat(model->eosMat, fp);
+
         /* Print a header. */
 		fprintf(fp,"#             R            rho              M              u              P              T              g\n", r, rho, M, u, EOSPofRhoU(model->eosMat, rho, u), EOSTofRhoU(model->eosMat, rho, u), CalcGrav(r,M));
 		fprintf(fp,"%15.7E%15.7E%15.7E%15.7E%15.7E%15.7E%15.7E\n", r, rho, M, u, EOSPofRhoU(model->eosMat, rho, u), EOSTofRhoU(model->eosMat, rho, u), CalcGrav(r,M));
