@@ -245,7 +245,7 @@ MODEL *modelInit(double ucore, int iMat) {
     fprintf(stderr, "\n");
 
 	model->eosMat = EOSinitMaterial(iMat, model->dKpcUnit, model->dMsolUnit, NULL);
-
+    EOSinitIsentropicLookup(model->eosMat, NULL);
     //tillPrintMat(model->tillMat);
 
     model->uc = ucore;
@@ -427,7 +427,11 @@ double modelSolve(MODEL *model, double M) {
     Ma = midPtRK(model,bSetModel=0,a,dr,&R);
     fprintf(stderr,"first Ma:%g R:%g\n",Ma,R);
 
-	b = 0.98*EOSRhoofUT(model->eosMat, model->uc,1e-4);
+	b = 0.98*EOSRhoofUT(model->eosMat, model->uc,1);
+    if (Ma > M)
+    {
+        b = 1.01*a;
+    }
 	if (b<a)
 	{
 		b = 1.6*a;
@@ -439,11 +443,12 @@ double modelSolve(MODEL *model, double M) {
 		Mb = Ma;
 		a = 0.5*(model->eosMat->rho0 + a);
 		Ma = midPtRK(model,bSetModel=0,a,dr,&R);
+        fprintf(stderr,"Ma:%g R:%g\n",Ma,R);
 	}
     while (Mb < M) {
 		b = 1.001*b;
 	   	Mb = midPtRK(model,bSetModel=0,b,dr,&R);	
-		fprintf(stderr,"first Mb:%g R:%g\n",Mb,R);
+		fprintf(stderr,"Mb:%g R:%g\n",Mb,R);
 	}
 
 	// (CR) Debug
