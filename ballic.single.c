@@ -662,7 +662,7 @@ void main(int argc, char **argv) {
     mTot = atof(argv[2]);
     ucore = atof(argv[3]);
     iMat = atoi(argv[4]);
-    writeTemperature = atoi(argv[1]);
+    writeTemperature = atoi(argv[5]);
     if (writeTemperature && iMat != 0) {
         fprintf(stderr,"Temperature only makes sense when using ideal gas for pkdgrav3\n");
     }
