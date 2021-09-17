@@ -647,21 +647,25 @@ void main(int argc, char **argv) {
     int nSmooth;
     double d,rho,u,eta,w0,dPdrho;
     FILE *fpi,*fpo;
-    int iRet,i;
+    int iRet,i,writeTemperature;
 	/*
 	** These variables are used to find the optimal softening.
 	*/
 	double l1max = 0.0;
 	double l2max = 0.0;
 
-    if (argc != 5) {
-	fprintf(stderr,"Usage: ballic <nDesired> <TotalMass> <ucore> <iMat> >myball.std\n");
+    if (argc != 6) {
+	fprintf(stderr,"Usage: ballic <nDesired> <TotalMass> <ucore> <iMat> <writeTemperature>>myball.std\n");
 	exit(1);
 	}
     nDesired = atoi(argv[1]);
     mTot = atof(argv[2]);
     ucore = atof(argv[3]);
     iMat = atoi(argv[4]);
+    writeTemperature = atoi(argv[1]);
+    if (writeTemperature && iMat != 0) {
+        fprintf(stderr,"Temperature only makes sense when using ideal gas for pkdgrav3\n");
+    }
 
 	/* Assure that the parameters make sense. */
 
@@ -911,7 +915,11 @@ void main(int argc, char **argv) {
     nReached = 0;
     if (bCentral) {
 		for (j=0;j<3;++j) gp.pos[j] = 0.0;
-		gp.temp = uLookup(model, 0);
+        if (writeTemperature) {
+            gp.temp = uLookup(model, 0)/model->eosMat->tillmaterial->cv;
+        } else {
+            gp.temp = uLookup(model, 0);
+        }
 		// Dont forget to set the material for the central particle
 		gp.metals = iMat;
 		TipsyAddGas(out,&gp);
@@ -953,7 +961,11 @@ void main(int argc, char **argv) {
 	    for (j=0;j<3;++j) gp.pos[j] = rs*r[j];
 	    
 //	    rho = rhoLookup(model,rs);
-	    gp.temp = uLookup(model,rs);
+        if (writeTemperature) {
+            gp.temp = uLookup(model,rs)/model->eosMat->tillmaterial->cv;
+        } else {
+            gp.temp = uLookup(model,rs);
+        }
 		// Save Material
 		gp.metals = iMat;
 	    TipsyAddGas(out,&gp);		
