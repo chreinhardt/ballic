@@ -19,7 +19,9 @@ EXE             = ballic ballic.single ballic.multi modelsolve
 
 # GNU Science library (uncomment if not needed)
 GSL_LIB          = -lgsl -lgslcblas
-LIBS            ?= -lm $(GSL_LIB)
+# tirpc library (needed if glibc >= 2.32)
+RPC_LIB          = -ltirpc
+LIBS            ?= -lm $(GSL_LIB) $(RPC_LIB)
 
 CFLAGS          ?= -O3 -march=native
 FFLAGS          ?= $(CFLAGS)
