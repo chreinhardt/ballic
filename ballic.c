@@ -438,9 +438,13 @@ double TLookup(MODEL *model,double r) {
     return (A*model->T[i]+(1.0-A)*model->T[i+1]);
 }
 
-/* Needs work. */
+/* Only works for single component models. */
 int matLookup(MODEL *model,double r) {
-    return 2;
+    for (int i=0; i<model->nTable; i++) {
+        if (i>0) assert(model->mat[i-1] == model->mat[i]);
+    }
+    
+    return model->mat[0];
 #if 0
     double x,xi,dr;
     int i;
@@ -548,6 +552,7 @@ void main(int argc, char **argv) {
     int nSmooth;
     double d,rho,u,eta,w0,dPdrho;
     FILE *fpi,*fpo;
+    int bWriteTemp = 1;
     int iRet,i;
     /*
      ** These variables are used to find the optimal softening.
@@ -820,7 +825,12 @@ void main(int argc, char **argv) {
     nReached = 0;
     if (bCentral) {
         for (j=0;j<3;++j) gp.pos[j] = 0.0;
-        gp.temp = uLookup(model, 0);
+        if (bWriteTemp) {
+            gp.temp = TLookup(model, 0);
+        } else {
+            gp.temp = uLookup(model, 0);
+        }
+
         // Dont forget to set the material for the central particle
         gp.metals = matLookup(model,0);
         TipsyAddGas(out,&gp);
@@ -851,7 +861,12 @@ void main(int argc, char **argv) {
             for (j=0;j<3;++j) gp.pos[j] = rs*r[j];
 
             //	    rho = rhoLookup(model,rs);
-            gp.temp = uLookup(model,rs);
+            if (bWriteTemp) {
+                gp.temp = TLookup(model,rs);
+            } else {
+                gp.temp = uLookup(model,rs);
+            }
+
             // Save Material
             gp.metals = matLookup(model,rs);
             TipsyAddGas(out,&gp);		
