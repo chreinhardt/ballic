@@ -204,10 +204,13 @@ typedef struct model_ctx {
 	int nTableMax;
 	int nTable;
 
-	double *M;
-	double *rho;
-	double *u;
 	double *r;
+	double *rho;
+	double *M;
+	double *u;
+	double *P;
+	double *T;
+
 	int *mat;
 	double dr;
 	double R;
@@ -227,14 +230,19 @@ MODEL *modelInit() {
 
 	/* Calculate the conversion factors. */
     model->nTableMax = 10000; 
-    model->M = malloc(model->nTableMax*sizeof(double));
-    assert(model->M != NULL);
-    model->rho = malloc(model->nTableMax*sizeof(double));
-    assert(model->rho != NULL);
-    model->u = malloc(model->nTableMax*sizeof(double));
-    assert(model->u != NULL);
     model->r = malloc(model->nTableMax*sizeof(double));
     assert(model->r != NULL);
+    model->rho = malloc(model->nTableMax*sizeof(double));
+    assert(model->rho != NULL);
+    model->M = malloc(model->nTableMax*sizeof(double));
+    assert(model->M != NULL);
+    model->u = malloc(model->nTableMax*sizeof(double));
+    assert(model->u != NULL);
+    model->P = malloc(model->nTableMax*sizeof(double));
+    assert(model->P != NULL);
+    model->T = malloc(model->nTableMax*sizeof(double));
+    assert(model->T != NULL);
+
     model->mat = malloc(model->nTableMax*sizeof(double));
     assert(model->mat != NULL);
     model->dr =  0.0;
@@ -246,6 +254,43 @@ MODEL *modelInit() {
 /*
 ** Read a text file containing an equilibrium model.
 */
+double modelRead(MODEL *model, char *file) {
+	FILE *fp;
+	int iRet, i;
+
+	assert(model != NULL);
+
+	/* Open the file. */
+	fp = fopen(file,"r");
+	assert(fp != NULL);
+
+	/* Read the model. */
+	for (i=0; i<model->nTableMax;i++)
+	{
+        /* Currently only single material models implemented so iMat is read but ignored. */
+        iRet = fscanf(fp, "%lf %lf %lf %lf %d %lf %lf", &model->r[i], &model->rho[i],
+                      &model->M[i], &model->u[i],  &model->mat[i], &model->P[i], &model->T[i]);
+
+		if (iRet <= 0 && feof(fp)) break;
+
+		assert(iRet > 0);
+		
+		assert(model->r[i] >= 0.0);
+		assert(model->rho[i] >= 0.0);
+		assert(model->M[i] >= 0.0);
+		assert(model->u[i] >= 0.0);
+		assert(model->mat[i] >= 0.0);
+		
+		model->nTable = i;
+		//printf("%g  %g  %g  %g  %i\n",model->r[i],model->M[i],model->rho[i],model->u[i],model->mat[i]);
+	}
+
+	model->nTable += 1;
+	
+	fprintf(stderr,"nTable=%i\n",model->nTable);
+
+}
+#if 0
 double modelRead(MODEL *model, char *file) {
 	FILE *fp;
 	int iRet, i;
@@ -283,6 +328,7 @@ double modelRead(MODEL *model, char *file) {
 	fprintf(stderr,"nTable=%i\n",model->nTable);
 
 }
+#endif
 /*
 ** Do bisection to find the values r_i and r_i+1 that
 ** bracket r in the lookup table. The function returns
@@ -294,7 +340,7 @@ int rLookup(MODEL *model,double r) {
 	iLower = 0;
 	iUpper = model->nTable-1;
 
-//	fprintf(stderr,"rLookup: r=%g\n", r);
+	fprintf(stderr,"rLookup: r=%g\n", r);
 	/* Make sure that r is in the lookup table. */
 	assert(r >= model->r[iLower]);
 	assert(r <= model->r[iUpper]);
@@ -360,6 +406,24 @@ double rhoLookup(MODEL *model,double r) {
 ** Find the internal energy for a given r.
 */
 double uLookup(MODEL *model,double r) {
+	int i;
+	double A;
+		
+	/* If r is outside of the lookup table, return something. */
+	i = model->nTable-1;
+    if (r >= model->r[i]) return(model->u[i]*exp(-(r-model->r[i])));
+
+	i = rLookup(model,r);
+
+	/* Do a linear interpolation. */
+	A = (model->r[i+1]-r)/(model->r[i+1]-model->r[i]);
+	return (A*model->u[i]+(1.0-A)*model->u[i+1]);
+}
+
+/*
+** Find the temperature for a given r.
+*/
+double TLookup(MODEL *model,double r) {
 	int i;
 	double A;
 		
