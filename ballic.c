@@ -92,9 +92,9 @@ void pix2vec_ring( long nside, long ipix, double *vec) {
     }
 
     ipix1 = ipix + 1; // in {1, npix}
-nl2 = 2*nside;
-nl4 = 4*nside;
-ncap = 2*nside*(nside-1);// ! points in each polar cap, =0 for nside =1
+    nl2 = 2*nside;
+    nl4 = 4*nside;
+    ncap = 2*nside*(nside-1); // ! points in each polar cap, =0 for nside =1
 fact1 = 1.5*nside;
 fact2 = 3.0*nside*nside;
 
@@ -256,40 +256,50 @@ MODEL *modelInit() {
  */
 double modelRead(MODEL *model, char *file) {
     FILE *fp;
-    int iRet, i;
+    char *chLine;
+    size_t nCharMax = 4096;
+    int iRet;
+    int i = 0;
 
     assert(model != NULL);
+
+    chLine = (char *) calloc(nCharMax, sizeof(char));
 
     /* Open the file. */
     fp = fopen(file,"r");
     assert(fp != NULL);
 
     /* Read the model. */
-    for (i=0; i<model->nTableMax;i++)
-    {
+    while (getline(&chLine, &nCharMax, fp) != -1) {
+        /* Check if its a comment. */
+        if (strchr(chLine, '#') != NULL) continue;
+
         /* Currently only single material models implemented so iMat is read but ignored. */
-        iRet = fscanf(fp, "%lf %lf %lf %lf %d %lf %lf", &model->r[i], &model->rho[i],
+        iRet = sscanf(chLine, "%lf %lf %lf %lf %d %lf %lf", &model->r[i], &model->rho[i],
                 &model->M[i], &model->u[i],  &model->mat[i], &model->P[i], &model->T[i]);
 
-        if (iRet <= 0 && feof(fp)) break;
-
-        assert(iRet > 0);
-
+        /* Check if the number of matches is correct. */
+        assert(iRet == 7);
+ 
+        /* Check that the values are sensible. */
         assert(model->r[i] >= 0.0);
         assert(model->rho[i] >= 0.0);
+        assert(model->T[i] >= 0.0);
         assert(model->M[i] >= 0.0);
-        assert(model->u[i] >= 0.0);
-        assert(model->mat[i] >= 0.0);
 
-        model->nTable = i;
-        //printf("%g  %g  %g  %g  %i\n",model->r[i],model->M[i],model->rho[i],model->u[i],model->mat[i]);
+        i++;
+
+        assert(i < model->nTableMax);
     }
 
-    model->nTable += 1;
+    model->nTable = i;
 
     fprintf(stderr,"nTable=%i\n",model->nTable);
 
+    free(chLine);
+    fclose(fp);
 }
+
 #if 0
 double modelRead(MODEL *model, char *file) {
     FILE *fp;
@@ -443,7 +453,7 @@ int matLookup(MODEL *model,double r) {
     for (int i=0; i<model->nTable; i++) {
         if (i>0) assert(model->mat[i-1] == model->mat[i]);
     }
-    
+
     return model->mat[0];
 #if 0
     double x,xi,dr;
